@@ -8,6 +8,7 @@ const { authMiddleware: authenticateToken } = require('../middleware/auth');
 const { catchAsync } = require('../middleware/errorHandler');
 const loggerModule = require('../utils/logger');
 const redis = require('../config/redis');
+const emailService = require('../services/emailService');
 
 // Redis 安全包装函数
 const safeRedisOperation = async (operation) => {
@@ -245,8 +246,13 @@ router.post('/register', authLimiter, registerValidation, catchAsync(async (req,
     ip: req.ip
   });
   
-  // TODO: 发送验证邮件
-  // await sendVerificationEmail(user.email, verificationToken);
+  // 发送验证邮件
+  try {
+    await emailService.sendVerificationEmail(user.email, user.emailVerificationToken);
+  } catch (error) {
+    loggerModule.errorLogger('Failed to send verification email', error, { userId: user._id, email: user.email });
+    // 邮件发送失败不影响注册流程
+  }
   
   res.status(201).json({
     success: true,
@@ -608,8 +614,13 @@ router.post('/forgot-password', passwordResetLimiter, passwordResetValidation, c
     ip: req.ip
   });
   
-  // TODO: 发送密码重置邮件
-  // await sendPasswordResetEmail(user.email, resetToken);
+  // 发送密码重置邮件
+  try {
+    await emailService.sendPasswordResetEmail(user.email, resetToken);
+  } catch (error) {
+    loggerModule.errorLogger('Failed to send password reset email', error, { userId: user._id, email });
+    // 邮件发送失败不影响重置流程
+  }
   
   res.json({
     success: true,

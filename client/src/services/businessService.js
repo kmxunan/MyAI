@@ -1,17 +1,16 @@
 import axios from 'axios';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+import { config, getApiUrl } from '../config';
 
 // 创建axios实例
 const businessApi = axios.create({
-  baseURL: `${API_BASE_URL}/api/business`,
-  timeout: 30000,
+  baseURL: getApiUrl('api/business'),
+  timeout: config.api.timeout,
 });
 
 // 请求拦截器 - 添加认证token
 businessApi.interceptors.request.use(
   (config) => {
-    const authStorage = localStorage.getItem('auth-storage');
+    const authStorage = localStorage.getItem(config.auth.tokenKey);
     if (authStorage) {
       try {
         const authData = JSON.parse(authStorage);

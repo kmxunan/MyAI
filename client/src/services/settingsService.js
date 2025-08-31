@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { config, getApiUrl } from '../config';
 import authService from './authService';
 
 // 默认设置
 const defaultSettings = {
-  theme: 'light',
-  language: 'zh-CN',
+  theme: config.ui.theme,
+  language: config.ui.language,
   notifications: {
     email: true,
     push: false,
@@ -17,10 +18,10 @@ const defaultSettings = {
     dataCollection: true
   },
   ai: {
-    defaultModel: 'openai/gpt-3.5-turbo', // via OpenRouter
-    temperature: 0.7,
-    maxTokens: 2048,
-    streamResponse: true
+    defaultModel: config.ai.defaultModel,
+    temperature: config.ai.defaultTemperature,
+    maxTokens: config.ai.defaultMaxTokens,
+    streamResponse: config.ai.streamResponse
   }
 };
 
@@ -41,8 +42,7 @@ export const useSettingsStore = create(
             throw new Error('用户未登录');
           }
 
-          const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-          const response = await fetch(`${baseURL}/api/user/settings`, {
+          const response = await fetch(`${getApiUrl('api/user/settings')}`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
@@ -70,8 +70,7 @@ export const useSettingsStore = create(
             throw new Error('用户未登录');
           }
 
-          const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-          const response = await fetch(`${baseURL}/api/user/settings`, {
+          const response = await fetch(`${getApiUrl('api/user/settings')}`, {
             method: 'PUT',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -110,8 +109,7 @@ export const useSettingsStore = create(
             throw new Error('用户未登录');
           }
 
-          const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-          const response = await fetch(`${baseURL}/api/user/settings/reset`, {
+          const response = await fetch(`${getApiUrl('api/user/settings/reset')}`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -144,7 +142,7 @@ export const useSettingsStore = create(
 // 设置服务类
 class SettingsService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+    this.baseURL = getApiUrl('api');
   }
 
   // 获取AI默认模型

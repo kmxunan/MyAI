@@ -157,25 +157,33 @@ const performSemanticSearch = async (searchQuery, knowledgeBaseId, options = {})
 
   try {
     // Use vector service to perform actual semantic search
-    const searchResults = await vectorService.searchVectors(searchQuery, knowledgeBaseId, limit);
+    const results = await vectorService.searchVectors(searchQuery, knowledgeBaseId, limit);
 
-    // Filter by threshold and format results
-    const filteredResults = searchResults
+    // Get document information for results
+    const documentIds = [...new Set(results.map(r => r.documentId))];
+    const documents = await Document.find({ _id: { $in: documentIds } }).select('title filename originalName');
+    const documentMap = new Map(documents.map(doc => [doc._id.toString(), doc]));
+
+    // Filter and format results
+    const filteredResults = results
       .filter((result) => result.score >= threshold)
-      .map((result) => ({
-        id: result.id,
-        documentId: result.documentId,
-        chunkId: `chunk_${result.chunkIndex}`,
-        content: result.text,
-        title: 'Document', // TODO: Get actual document title from database
-        filename: 'document.pdf', // TODO: Get actual filename from database
-        score: result.score,
-        embedding: null, // Don't return embeddings to client
-        metadata: {
-          chunkIndex: result.chunkIndex,
-          createdAt: result.createdAt,
-        },
-      }));
+      .map((result) => {
+        const document = documentMap.get(result.documentId);
+        return {
+          id: result.id,
+          documentId: result.documentId,
+          chunkId: `chunk_${result.chunkIndex}`,
+          content: result.text,
+          title: document?.title || document?.originalName || 'Unknown Document',
+          filename: document?.filename || document?.originalName || 'unknown.pdf',
+          score: result.score,
+          embedding: null, // Don't return embeddings to client
+          metadata: {
+            chunkIndex: result.chunkIndex,
+            createdAt: result.createdAt,
+          },
+        };
+      });
 
     return filteredResults;
   } catch (error) {

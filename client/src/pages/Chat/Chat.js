@@ -113,12 +113,21 @@ const Chat = () => {
   const formatModelLabel = (model) => {
     if (!model) return '';
     const modelMap = {
+      // OpenRouter format models
+      'openai/gpt-4': 'GPT-4',
+      'openai/gpt-3.5-turbo': 'GPT-3.5',
+      'openai/gpt-4-turbo': 'GPT-4 Turbo',
+      'anthropic/claude-3-opus': 'Claude 3 Opus',
+      'anthropic/claude-3-sonnet': 'Claude 3 Sonnet',
+      'anthropic/claude-3.5-sonnet': 'Claude 3.5 Sonnet',
+      'google/gemini-pro': 'Gemini Pro',
+      // Legacy format for backward compatibility
       'gpt-4': 'GPT-4',
       'gpt-3.5-turbo': 'GPT-3.5',
       'claude-3-opus': 'Claude 3 Opus',
       'claude-3-sonnet': 'Claude 3 Sonnet'
     };
-    return modelMap[model] || model;
+    return modelMap[model] || model.replace('/', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const handleSendMessage = async () => {

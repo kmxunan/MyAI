@@ -1,11 +1,12 @@
 import axios from 'axios';
+import { config, getApiUrl } from '../config';
 
 class AuthService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+    this.baseURL = getApiUrl('api');
     this.api = axios.create({
       baseURL: this.baseURL,
-      timeout: 30000, // 增加到30秒以适应模型列表获取
+      timeout: config.api.timeout,
       headers: {
         'Content-Type': 'application/json'
       }
@@ -14,7 +15,7 @@ class AuthService {
     // 请求拦截器
     this.api.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('auth-storage');
+        const token = localStorage.getItem(config.auth.tokenKey);
         if (token) {
           try {
             const authData = JSON.parse(token);
@@ -39,7 +40,7 @@ class AuthService {
         if (error.response?.status === 401) {
           // Token过期或无效：只清理本地状态与默认头，交由上层路由守卫/页面逻辑处理跳转
           try {
-            localStorage.removeItem('auth-storage');
+            localStorage.removeItem(config.auth.tokenKey);
           } catch {}
           delete this.api.defaults.headers.common['Authorization'];
         }

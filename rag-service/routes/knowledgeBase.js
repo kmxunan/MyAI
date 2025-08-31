@@ -730,7 +730,42 @@ router.delete('/:id', optionalAuth, validateKnowledgeBaseId, checkValidation, ca
     await Promise.all(listKeys.map((key) => cache.del(key)));
   }
 
-  // TODO: Delete all documents and vectors from vector database
+  // Delete all documents and vectors from vector database
+  const Document = require('../models/Document');
+  const vectorService = require('../services/vectorService');
+  
+  try {
+    // Get all documents in this knowledge base
+    const documents = await Document.find({ knowledgeBaseId: id });
+    
+    // Delete vectors for each document
+    for (const document of documents) {
+      try {
+        await vectorService.deleteDocumentVectors(document._id.toString(), id);
+      } catch (vectorError) {
+        logger.error('Failed to delete vectors for document', {
+          documentId: document._id,
+          knowledgeBaseId: id,
+          error: vectorError.message
+        });
+      }
+    }
+    
+    // Delete all documents from database
+    await Document.deleteMany({ knowledgeBaseId: id });
+    
+    logger.logRAG('Deleted documents and vectors', {
+      userId,
+      knowledgeBaseId: id,
+      documentCount: documents.length
+    });
+  } catch (cleanupError) {
+    logger.error('Failed to cleanup documents and vectors', {
+      knowledgeBaseId: id,
+      error: cleanupError.message
+    });
+    // Continue with knowledge base deletion even if cleanup fails
+  }
 
   logger.logRAG('Knowledge base deleted', {
     userId,

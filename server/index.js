@@ -11,6 +11,7 @@ const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 require('dotenv').config();
 
+const { config, configManager } = require('./config');
 const logger = require('./utils/logger');
 const { connectDB } = require('./config/database');
 const { initializeRedis } = require('./config/redis');
@@ -27,10 +28,10 @@ const userRoutes = require('./routes/users');
 const fileRoutes = require('./routes/files');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = config.server.port;
 
 // 信任代理
-app.set('trust proxy', 1);
+app.set('trust proxy', config.server.trustProxy);
 
 // 安全中间件
 app.use(helmet({
@@ -49,7 +50,7 @@ app.use(compression());
 
 // CORS 配置
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: config.server.corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -62,24 +63,24 @@ app.use(cookieParser());
 
 // 会话配置
 app.use(session({
-  secret: process.env.JWT_SECRET || 'myai-session-secret',
+  secret: config.security.sessionSecret,
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({
-    mongoUrl: process.env.MONGO_URI,
+    mongoUrl: config.database.mongodb.uri,
     touchAfter: 24 * 3600 // 24小时内只更新一次
   }),
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: config.security.secureCookies,
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 * 7 // 7天
+    maxAge: config.security.sessionMaxAge
   }
 }));
 
 // 速率限制
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15分钟
-  max: 100, // 限制每个IP 15分钟内最多100个请求
+  windowMs: config.security.rateLimitWindowMs,
+  max: config.security.rateLimitMaxRequests,
   message: {
     error: 'Too many requests from this IP, please try again later.'
   },

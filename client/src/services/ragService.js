@@ -1,17 +1,16 @@
 import axios from 'axios';
-
-const API_BASE_URL = process.env.REACT_APP_RAG_URL || 'http://localhost:3002';
+import { config, getRagApiUrl } from '../config';
 
 // 创建axios实例
 const ragApi = axios.create({
-  baseURL: `${API_BASE_URL}/api/v1`,
-  timeout: 30000,
+  baseURL: getRagApiUrl(),
+  timeout: config.api.ragTimeout,
 });
 
 // 请求拦截器 - 添加认证token
 ragApi.interceptors.request.use(
   (config) => {
-    const authStorage = localStorage.getItem('auth-storage');
+    const authStorage = localStorage.getItem(config.auth.tokenKey);
     if (authStorage) {
       try {
         const authData = JSON.parse(authStorage);

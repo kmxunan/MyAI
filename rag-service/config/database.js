@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
+const { config, getDatabaseUri } = require('./index');
 
 class DatabaseConnection {
   constructor() {
@@ -16,32 +17,25 @@ class DatabaseConnection {
    */
   async connect() {
     try {
-      // 构建连接字符串
-      const connectionString = this.buildConnectionString();
+      // 获取连接字符串
+      const connectionString = getDatabaseUri();
 
       // 连接选项
       const options = {
-        // 连接池设置
-        maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE, 10) || 10,
-        minPoolSize: parseInt(process.env.DB_MIN_POOL_SIZE, 10) || 2,
-        maxIdleTimeMS: parseInt(process.env.DB_MAX_IDLE_TIME, 10) || 30000,
-
-        // 连接超时设置
-        serverSelectionTimeoutMS: parseInt(process.env.DB_SERVER_SELECTION_TIMEOUT, 10) || 5000,
-        socketTimeoutMS: parseInt(process.env.DB_SOCKET_TIMEOUT, 10) || 45000,
-        connectTimeoutMS: parseInt(process.env.DB_CONNECT_TIMEOUT, 10) || 10000,
-
+        // 使用配置管理器的数据库选项
+        ...config.database.mongodb.options,
+        
         // 缓冲设置
         bufferCommands: false,
 
         // 其他设置
         retryWrites: true,
         retryReads: true,
-        readPreference: process.env.DB_READ_PREFERENCE || 'primary',
+        readPreference: 'primary',
         writeConcern: {
-          w: process.env.DB_WRITE_CONCERN || 'majority',
+          w: 'majority',
           j: true,
-          wtimeout: parseInt(process.env.DB_WRITE_TIMEOUT, 10) || 10000,
+          wtimeout: 10000,
         },
 
         // 压缩

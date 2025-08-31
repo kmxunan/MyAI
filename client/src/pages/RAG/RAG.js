@@ -596,10 +596,6 @@ const RAG = () => {
       {/* 知识库页面 */}
       {activeTab === 2 && (
         <Box>
-          <Alert severity="info" sx={{ mb: 3 }}>
-            知识库功能正在开发中，敬请期待！
-          </Alert>
-          
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <Card>

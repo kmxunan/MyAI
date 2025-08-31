@@ -1,8 +1,9 @@
+import { config, getApiUrl } from '../config';
 import authService from './authService';
 
 class ChatService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+    this.baseURL = getApiUrl();
     this.api = authService.getApiInstance();
   }
 

@@ -1,17 +1,17 @@
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
+const { config, getDatabaseUri } = require('./index');
 
 /**
  * 连接 MongoDB 数据库
  */
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/myai';
+    const mongoURI = getDatabaseUri();
     logger.info('Attempting to connect to MongoDB:', mongoURI);
     
     const options = {
-      serverSelectionTimeoutMS: 10000, // 增加服务器选择超时时间到10秒
-      socketTimeoutMS: 45000, // Socket 超时时间
+      ...config.database.mongodb.options,
       bufferCommands: false, // 禁用 mongoose 缓冲命令
     };
 

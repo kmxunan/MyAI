@@ -12,6 +12,7 @@ const path = require('path');
 const fs = require('fs');
 
 // 导入配置和工具
+const { config, configManager } = require('./config');
 const { connectDB } = require('./config/database');
 const { connectRedis } = require('./config/redis');
 const logger = require('./utils/logger');
@@ -91,14 +92,12 @@ class RAGServiceApp {
     // CORS配置
     const corsOptions = {
       origin: (origin, callback) => {
-        const allowedOrigins = process.env.ALLOWED_ORIGINS
-          ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-          : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'];
+        const allowedOrigins = config.server.corsOrigins;
 
         // 允许没有origin的请求（如移动应用、Postman等）
         if (!origin) return callback(null, true);
 
-        if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+        if (allowedOrigins.includes(origin) || config.development.debug) {
           callback(null, true);
         } else {
           callback(new Error('Not allowed by CORS'));
@@ -124,14 +123,14 @@ class RAGServiceApp {
 
     // 请求体解析
     this.app.use(express.json({
-      limit: process.env.JSON_LIMIT || '10mb',
+      limit: `${Math.round(config.document.maxFileSize / 1024 / 1024)}mb`,
       verify: (req, res, buf) => {
         req.rawBody = buf;
       },
     }));
     this.app.use(express.urlencoded({
       extended: true,
-      limit: process.env.URL_ENCODED_LIMIT || '10mb',
+      limit: `${Math.round(config.document.maxFileSize / 1024 / 1024)}mb`,
     }));
 
     // 数据清理和安全
@@ -141,11 +140,11 @@ class RAGServiceApp {
 
     // 全局速率限制
     const globalLimiter = rateLimit({
-      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW, 10) || 15 * 60 * 1000, // 15分钟
-      max: parseInt(process.env.RATE_LIMIT_MAX, 10) || 1000, // 每个IP最多1000个请求
+      windowMs: config.security.rateLimitWindowMs,
+      max: config.security.rateLimitMaxRequests,
       message: {
         error: 'Too many requests from this IP, please try again later.',
-        retryAfter: Math.ceil((parseInt(process.env.RATE_LIMIT_WINDOW, 10) || 15 * 60 * 1000) / 1000),
+        retryAfter: Math.ceil(config.security.rateLimitWindowMs / 1000),
       },
       standardHeaders: true,
       legacyHeaders: false,
@@ -375,14 +374,14 @@ class RAGServiceApp {
       await RAGServiceApp.initializeServices();
 
       // 启动HTTP服务器
-      const port = parseInt(process.env.PORT, 10) || 3002;
-      const host = process.env.HOST || '0.0.0.0';
+      const port = config.server.port;
+      const host = config.server.host;
 
       this.server = this.app.listen(port, host, () => {
         logger.info('RAG Service started successfully', {
           port,
           host,
-          environment: process.env.NODE_ENV || 'development',
+          environment: config.server.env,
           processId: process.pid,
           nodeVersion: process.version,
           platform: process.platform,
@@ -394,14 +393,14 @@ class RAGServiceApp {
         logger.info('Available endpoints:', {
           health: `http://${host}:${port}/health`,
           docs: `http://${host}:${port}/api-docs`,
-          api: `http://${host}:${port}${process.env.API_PREFIX || '/api/v1'}`,
+          api: `http://${host}:${port}/api/v1`,
         });
       });
 
       // 设置服务器配置
-      this.server.keepAliveTimeout = parseInt(process.env.KEEP_ALIVE_TIMEOUT, 10) || 65000;
-      this.server.headersTimeout = parseInt(process.env.HEADERS_TIMEOUT, 10) || 66000;
-      this.server.timeout = parseInt(process.env.SERVER_TIMEOUT, 10) || 120000;
+      this.server.keepAliveTimeout = config.performance.keepAliveTimeout;
+      this.server.headersTimeout = config.performance.headersTimeout;
+      this.server.timeout = config.performance.requestTimeout;
 
       // 设置优雅关闭
       this.setupGracefulShutdown();

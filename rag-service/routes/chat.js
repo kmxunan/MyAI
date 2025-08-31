@@ -58,8 +58,8 @@ const validateChatRequest = [
     .withMessage('Invalid conversation ID'),
   body('model')
     .optional()
-    .isIn(['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'claude-3-sonnet', 'claude-3-opus'])
-    .withMessage('Invalid model selection'),
+    .matches(/^(openai|anthropic|google|meta|mistral|cohere)\/.+$/)
+    .withMessage('Model must be in format provider/model-name (e.g., openai/gpt-3.5-turbo)'),
   body('temperature')
     .optional()
     .isFloat({ min: 0, max: 2 })
@@ -150,7 +150,7 @@ const performRAGSearch = async (message, knowledgeBaseId, options = {}) => {
 
 const generateResponse = async (message, context, options = {}) => {
   const {
-    model = 'gpt-3.5-turbo',
+    model = 'openai/gpt-3.5-turbo',
     temperature = 0.7,
     maxTokens = 1000,
     conversationHistory = [],
@@ -298,8 +298,9 @@ const saveConversation = async (conversationId, message, response, userId, knowl
  *           description: Existing conversation ID (optional)
  *         model:
  *           type: string
- *           enum: [gpt-3.5-turbo, gpt-4, gpt-4-turbo, claude-3-sonnet, claude-3-opus]
- *           default: gpt-3.5-turbo
+ *           pattern: ^(openai|anthropic|google|meta|mistral|cohere)\/.+$
+ *           default: openai/gpt-3.5-turbo
+ *           example: openai/gpt-3.5-turbo
  *         temperature:
  *           type: number
  *           minimum: 0
@@ -403,7 +404,7 @@ router.post(
     const {
       message,
       conversationId,
-      model = 'gpt-3.5-turbo',
+      model = 'openai/gpt-3.5-turbo',
       temperature = 0.7,
       maxTokens = 1000,
       searchOptions = {},
@@ -534,7 +535,7 @@ router.post(
     const {
       message,
       conversationId,
-      model = 'gpt-3.5-turbo',
+      model = 'openai/gpt-3.5-turbo',
       temperature = 0.7,
       maxTokens = 1000,
       searchOptions = {},
@@ -788,32 +789,78 @@ router.get(
     let result = await cache.get(cacheKey);
 
     if (!result) {
-      // TODO: Implement actual database query
-      // For now, return mock data
-      const mockConversations = [
+      // Implement actual database query
+      const ChatSession = require('../models/ChatSession');
+      
+      const skip = (page - 1) * limit;
+      
+      // Get conversations with message count and last message
+      const conversations = await ChatSession.aggregate([
         {
-          id: 'conv_1234567890',
-          title: 'API Authentication Questions',
-          messageCount: 6,
-          lastMessage: 'Thank you for the explanation about JWT tokens.',
-          updatedAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+          $match: {
+            knowledgeBaseId: knowledgeBase._id,
+            userId: userId
+          }
         },
         {
-          id: 'conv_0987654321',
-          title: 'Database Schema Discussion',
-          messageCount: 4,
-          lastMessage: 'How do I set up the user model?',
-          updatedAt: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+          $lookup: {
+            from: 'messages',
+            localField: '_id',
+            foreignField: 'sessionId',
+            as: 'messages'
+          }
         },
-      ];
+        {
+          $addFields: {
+            messageCount: { $size: '$messages' },
+            lastMessage: {
+              $arrayElemAt: [
+                {
+                  $map: {
+                    input: { $slice: [{ $sortArray: { input: '$messages', sortBy: { createdAt: -1 } } }, 1] },
+                    as: 'msg',
+                    in: '$$msg.content'
+                  }
+                },
+                0
+              ]
+            }
+          }
+        },
+        {
+          $project: {
+            id: '$_id',
+            title: 1,
+            messageCount: 1,
+            lastMessage: 1,
+            updatedAt: 1,
+            createdAt: 1
+          }
+        },
+        { $sort: { updatedAt: -1 } },
+        { $skip: skip },
+        { $limit: parseInt(limit, 10) }
+      ]);
+      
+      // Get total count for pagination
+      const totalCount = await ChatSession.countDocuments({
+        knowledgeBaseId: knowledgeBase._id,
+        userId: userId
+      });
 
       result = {
-        data: mockConversations,
+        data: conversations.map(conv => ({
+          id: conv.id || conv._id,
+          title: conv.title || 'Untitled Conversation',
+          messageCount: conv.messageCount || 0,
+          lastMessage: conv.lastMessage || 'No messages yet',
+          updatedAt: conv.updatedAt?.toISOString() || conv.createdAt?.toISOString() || new Date().toISOString()
+        })),
         pagination: {
           page: parseInt(page, 10),
           limit: parseInt(limit, 10),
-          total: mockConversations.length,
-          pages: Math.ceil(mockConversations.length / limit),
+          total: totalCount,
+          pages: Math.ceil(totalCount / limit),
         },
       };
 
