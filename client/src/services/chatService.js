@@ -94,7 +94,8 @@ class ChatService {
   }
 
   // 流式发送消息
-  async sendStreamMessage(conversationId, data, onMessage, onError, onComplete) {
+  async sendStreamMessage(conversationId, data, onMessage, onError, onComplete, options = {}) {
+    const controller = options.controller || new AbortController();
     try {
       const response = await fetch(`${this.baseURL}/api/chat/conversations/${conversationId}/messages/stream`, {
         method: 'POST',
@@ -102,7 +103,8 @@ class ChatService {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authService.getToken()}`
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
+        signal: controller.signal
       });
 
       if (!response.ok) {
@@ -146,6 +148,11 @@ class ChatService {
         }
       }
     } catch (error) {
+      if (error.name === 'AbortError') {
+        // 主动取消
+        if (onError) onError(new Error('已取消生成'));
+        return;
+      }
       console.error('流式发送消息失败:', error);
       if (onError) onError(error);
       throw error;

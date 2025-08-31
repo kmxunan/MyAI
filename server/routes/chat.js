@@ -1486,3 +1486,271 @@ router.get('/health',
 );
 
 module.exports = router;
+
+/**
+ * @swagger
+ * /api/chat/conversations/{id}/messages/stream:
+ *   post:
+ *     summary: Send message with streaming response
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Conversation ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               content:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [user, assistant, system]
+ *                 default: user
+ *     responses:
+ *       200:
+ *         description: Streaming response
+ *         content:
+ *           text/event-stream:
+ *             schema:
+ *               type: string
+ */
+router.post('/conversations/:id/messages/stream',
+  authenticateToken,
+  checkPermission('chat:write'),
+  chatLimiter,
+  [
+    param('id').isMongoId().withMessage('Invalid conversation ID'),
+    ...sendMessageValidation
+  ],
+  catchAsync(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { id: conversationId } = req.params;
+    const { content, role = 'user', parentMessageId, attachments } = req.body;
+    const userId = req.user.id;
+
+    // 验证对话是否存在且属于用户
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      user: userId,
+      status: { $ne: 'deleted' }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conversation not found'
+      });
+    }
+
+    // 设置SSE响应头
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    try {
+      // 保存用户消息
+      const userMessage = new Message({
+        conversation: conversationId,
+        role,
+        content,
+        user: userId,
+        parentMessage: parentMessageId,
+        attachments: attachments || [],
+        tokens: calculateTokens(content),
+        cost: calculateCost(calculateTokens(content), conversation.model)
+      });
+      await userMessage.save();
+
+      // 发送用户消息确认
+      res.write(`data: ${JSON.stringify({
+        type: 'user_message',
+        message: userMessage
+      })}\n\n`);
+
+      // 准备AI回复的消息对象
+      const aiMessage = new Message({
+        conversation: conversationId,
+        role: 'assistant',
+        content: '正在思考中...',
+        user: userId,
+        parentMessage: userMessage._id,
+        tokens: 0,
+        cost: 0,
+        status: 'pending'
+      });
+      await aiMessage.save();
+
+      // 发送AI消息开始事件
+      res.write(`data: ${JSON.stringify({
+        type: 'ai_message_start',
+        messageId: aiMessage._id
+      })}\n\n`);
+
+      // 构建消息历史
+      const messages = await Message.find({
+        conversation: conversationId
+      })
+        .sort({ createdAt: 1 })
+        .limit(20)
+        .select('role content');
+
+      const messageHistory = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // 添加系统提示
+      if (conversation.systemPrompt) {
+        messageHistory.unshift({
+          role: 'system',
+          content: conversation.systemPrompt
+        });
+      }
+
+      // 调用OpenRouter流式API
+      const modelId = `${conversation.model.provider}/${conversation.model.name}`;
+      const streamResponse = await openRouterService.streamChatCompletion({
+        model: modelId,
+        messages: messageHistory,
+        temperature: 0.7,
+        maxTokens: 2048
+      });
+
+      let fullContent = '';
+      let tokenCount = 0;
+
+      // 处理流式响应
+      streamResponse.on('data', (chunk) => {
+        const lines = chunk.toString().split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            
+            if (data === '[DONE]') {
+              // 流结束，更新消息
+              aiMessage.content = fullContent || '抱歉，我无法生成回复。';
+              aiMessage.tokens = tokenCount;
+              aiMessage.cost = calculateCost(tokenCount, conversation.model);
+              aiMessage.status = 'completed';
+              aiMessage.save();
+              
+              // 发送完成事件
+              res.write(`data: ${JSON.stringify({
+                type: 'ai_message_complete',
+                messageId: aiMessage._id,
+                content: fullContent,
+                tokens: tokenCount
+              })}\n\n`);
+              
+              res.write('data: [DONE]\n\n');
+              res.end();
+              return;
+            }
+            
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              
+              if (delta) {
+                fullContent += delta;
+                tokenCount += calculateTokens(delta);
+                
+                // 发送增量内容
+                res.write(`data: ${JSON.stringify({
+                  type: 'ai_message_delta',
+                  messageId: aiMessage._id,
+                  delta: delta,
+                  content: fullContent
+                })}\n\n`);
+              }
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+        }
+      });
+
+      streamResponse.on('error', (error) => {
+        logger.error('Stream error:', error);
+        
+        // 更新AI消息状态为失败
+        aiMessage.content = 'AI服务暂时不可用，请稍后重试';
+        aiMessage.status = 'failed';
+        aiMessage.error = {
+          code: 'STREAM_ERROR',
+          message: error.message
+        };
+        aiMessage.save();
+        
+        res.write(`data: ${JSON.stringify({
+          type: 'error',
+          message: 'AI服务暂时不可用，请稍后重试'
+        })}\n\n`);
+        res.end();
+      });
+
+      streamResponse.on('end', () => {
+        if (!res.headersSent) {
+          res.write('data: [DONE]\n\n');
+          res.end();
+        }
+      });
+
+      // 更新对话统计
+      conversation.messageCount += 2; // 用户消息 + AI消息
+      conversation.lastMessageAt = new Date();
+      await conversation.save();
+
+      // 更新用户统计
+      const user = await User.findById(userId);
+      if (user) {
+        user.stats.totalMessages += 2;
+        user.stats.totalTokensUsed += userMessage.tokens + tokenCount;
+        user.stats.totalCost += userMessage.cost + calculateCost(tokenCount, conversation.model);
+        await user.save();
+      }
+
+    } catch (error) {
+      logger.error('Streaming message error:', error);
+      
+      if (!res.headersSent) {
+        res.writeHead(500, {
+          'Content-Type': 'application/json'
+        });
+        res.end(JSON.stringify({
+          success: false,
+          message: 'Internal server error',
+          error: error.message
+        }));
+      } else {
+        res.write(`data: ${JSON.stringify({
+          type: 'error',
+          message: 'AI服务暂时不可用，请稍后重试'
+        })}\n\n`);
+        res.end();
+      }
+    }
+  })
+);

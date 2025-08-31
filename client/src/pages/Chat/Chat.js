@@ -114,6 +114,20 @@ const Chat = () => {
 
   const formatModelLabel = (model) => {
     if (!model) return '';
+    
+    // Handle object type model
+    let modelString = '';
+    if (typeof model === 'object' && model !== null) {
+      const provider = String(model.provider || '');
+      const name = String(model.name || '');
+      const version = model.version ? `:${String(model.version)}` : '';
+      modelString = [provider, name].filter(Boolean).join('/') + version;
+    } else if (typeof model === 'string') {
+      modelString = model;
+    } else {
+      return 'unknown-model';
+    }
+    
     const modelMap = {
       // OpenRouter format models
       'openai/gpt-4': 'GPT-4',
@@ -129,7 +143,7 @@ const Chat = () => {
       'claude-3-opus': 'Claude 3 Opus',
       'claude-3-sonnet': 'Claude 3 Sonnet'
     };
-    return modelMap[model] || model.replace('/', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return modelMap[modelString] || modelString.replace('/', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const handleSendMessage = async () => {

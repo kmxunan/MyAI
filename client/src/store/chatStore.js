@@ -15,6 +15,7 @@ const useChatStore = create(
       supportedModels: [],
       isLoading: false,
       isStreaming: false,
+      streamController: null,
       error: null,
       
       // 分页状态
@@ -74,6 +75,29 @@ const useChatStore = create(
       
       // 设置流式状态
       setStreaming: (isStreaming) => set({ isStreaming }),
+      
+      // 停止流式生成
+      stopStreaming: () => {
+        const controller = get().streamController;
+        if (controller) {
+          try {
+            controller.abort();
+          } catch (e) {
+            console.warn('Abort streaming failed:', e);
+          }
+        }
+        // 标记状态并关闭占位中标志
+        set((state) => {
+          const updated = [...state.messages];
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant' && updated[i].isStreaming) {
+              updated[i] = { ...updated[i], isStreaming: false };
+              break;
+            }
+          }
+          return { isStreaming: false, streamController: null, messages: updated };
+        });
+      },
       
       // 获取对话列表
       fetchConversations: async (page = 1, reset = false) => {
@@ -324,7 +348,8 @@ const useChatStore = create(
       // 流式发送消息
       sendStreamMessage: async (conversationId, data) => {
         try {
-          set({ isStreaming: true, error: null });
+          const controller = new AbortController();
+          set({ isStreaming: true, error: null, streamController: controller });
           
           // 添加用户消息
           const userMessage = {
@@ -367,10 +392,25 @@ const useChatStore = create(
             },
             // onError
             (error) => {
+              // 如果是用户主动取消，不删除已经生成的内容
+              if (error.message === '已取消生成') {
+                set((state) => ({
+                  messages: state.messages.map(msg => 
+                    msg.id === aiMessage.id 
+                      ? { ...msg, isStreaming: false }
+                      : msg
+                  ),
+                  isStreaming: false,
+                  streamController: null
+                }));
+                toast.success('已停止生成');
+                return;
+              }
               set((state) => ({
                 messages: state.messages.filter(msg => msg.id !== aiMessage.id),
                 error: error.message,
-                isStreaming: false
+                isStreaming: false,
+                streamController: null
               }));
               toast.error('流式消息发送失败');
             },
@@ -382,13 +422,15 @@ const useChatStore = create(
                     ? { ...msg, isStreaming: false }
                     : msg
                 ),
-                isStreaming: false
+                isStreaming: false,
+                streamController: null
               }));
-            }
+            },
+            { controller }
           );
           
         } catch (error) {
-          set({ error: error.message, isStreaming: false });
+          set({ error: error.message, isStreaming: false, streamController: null });
           toast.error('发送流式消息失败');
           throw error;
         }
