@@ -98,14 +98,14 @@ const upload = multer({
  */
 const validateKnowledgeBaseId = [
   param('knowledgeBaseId')
-    .isMongoId()
-    .withMessage('Invalid knowledge base ID'),
+    .isLength({ min: 1 })
+    .withMessage('Knowledge base ID is required'),
 ];
 
 const validateDocumentId = [
   param('documentId')
-    .isMongoId()
-    .withMessage('Invalid document ID'),
+    .isLength({ min: 1 })
+    .withMessage('Document ID is required'),
 ];
 
 const validatePagination = [
@@ -546,7 +546,7 @@ router.post(
 
     // Check if knowledge base exists and user has access
     const knowledgeBase = await cache.get(`kb:${knowledgeBaseId}`);
-    if (!knowledgeBase || (knowledgeBase.userId !== userId && req.user.role !== 'admin')) {
+    if (!knowledgeBase || (knowledgeBase.userId !== userId && req.user?.role !== 'admin')) {
       throw new NotFoundError('Knowledge base');
     }
 

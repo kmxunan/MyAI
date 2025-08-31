@@ -9,20 +9,20 @@ const ragApi = axios.create({
 
 // 请求拦截器 - 添加认证token
 ragApi.interceptors.request.use(
-  (config) => {
+  (requestConfig) => {
     const authStorage = localStorage.getItem(config.auth.tokenKey);
     if (authStorage) {
       try {
         const authData = JSON.parse(authStorage);
         const token = authData.state?.token;
         if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+          requestConfig.headers.Authorization = `Bearer ${token}`;
         }
       } catch (error) {
         console.error('Error parsing auth token:', error);
       }
     }
-    return config;
+    return requestConfig;
   },
   (error) => {
     return Promise.reject(error);
@@ -100,7 +100,6 @@ export const ragService = {
   async uploadDocuments(knowledgeBaseId, files, metadata = {}) {
     try {
       const formData = new FormData();
-      formData.append('knowledgeBaseId', knowledgeBaseId);
       
       // 添加文件
       files.forEach((file) => {
@@ -112,7 +111,7 @@ export const ragService = {
         formData.append('metadata', JSON.stringify(metadata));
       }
       
-      const response = await ragApi.post('/upload', formData, {
+      const response = await ragApi.post(`/documents/${knowledgeBaseId}/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

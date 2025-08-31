@@ -97,11 +97,25 @@ const SmartRAG = () => {
       let kb = kbResponse.data?.find(kb => kb.name === 'default');
       
       if (!kb) {
-        const createResponse = await ragService.createKnowledgeBase({
-          name: 'default',
-          description: '默认知识库'
-        });
-        kb = createResponse.data;
+        try {
+          const createResponse = await ragService.createKnowledgeBase({
+            name: 'default',
+            description: '默认知识库'
+          });
+          kb = createResponse.data;
+        } catch (createError) {
+          // 如果创建失败（可能是409冲突），重新获取知识库列表
+          if (createError.response?.status === 409) {
+            console.log('知识库已存在，重新获取列表');
+            const retryResponse = await ragService.getKnowledgeBases();
+            kb = retryResponse.data?.find(kb => kb.name === 'default');
+            if (!kb) {
+              throw new Error('无法获取或创建默认知识库');
+            }
+          } else {
+            throw createError;
+          }
+        }
       }
       
       setKnowledgeBase(kb);
@@ -169,12 +183,6 @@ const SmartRAG = () => {
       setIsUploading(true);
       setUploadProgress(0);
       
-      const formData = new FormData();
-      Array.from(files).forEach(file => {
-        formData.append('files', file);
-      });
-      formData.append('knowledgeBaseId', knowledgeBase.id);
-      
       // 模拟上传进度
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
@@ -186,7 +194,14 @@ const SmartRAG = () => {
         });
       }, 200);
       
-      await ragService.uploadDocuments(formData);
+      // 正确调用uploadDocuments函数
+      const metadata = {
+        onProgress: (progress) => {
+          setUploadProgress(progress);
+        }
+      };
+      
+      await ragService.uploadDocuments(knowledgeBase.id, Array.from(files), metadata);
       
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -199,12 +214,24 @@ const SmartRAG = () => {
       setShowUploadDialog(false);
       setSelectedFiles([]);
       
+      // 清空文件输入元素以避免 ERR_UPLOAD_FILE_CHANGED 错误
+      const fileInput = document.querySelector('input[type="file"]');
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      
     } catch (error) {
       console.error('上传失败:', error);
       toast.error('文件上传失败，请重试');
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
+      
+      // 清空文件输入元素以避免 ERR_UPLOAD_FILE_CHANGED 错误
+      const fileInput = document.querySelector('input[type="file"]');
+      if (fileInput) {
+        fileInput.value = '';
+      }
     }
   };
 
@@ -760,10 +787,8 @@ const SmartRAG = () => {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle sx={{ pb: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            上传文档
-          </Typography>
+        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>
+          上传文档
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Box
@@ -832,7 +857,15 @@ const SmartRAG = () => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: 3, pt: 1 }}>
-          <Button onClick={() => setShowUploadDialog(false)} disabled={isUploading}>
+          <Button onClick={() => {
+            setShowUploadDialog(false);
+            setSelectedFiles([]);
+            // 清空文件输入元素
+            const fileInput = document.querySelector('input[type="file"]');
+            if (fileInput) {
+              fileInput.value = '';
+            }
+          }} disabled={isUploading}>
             取消
           </Button>
           <Button 

@@ -64,7 +64,7 @@ class VectorDBService {
         // Qdrant client doesn't have explicit disconnect method
         this.client = null;
         this.isConnected = false;
-        logger.logVectorDB('Disconnected from Qdrant');
+        logger.logVector('Disconnected from Qdrant', 'system');
       }
     } catch (error) {
       logger.logError('Error disconnecting from Qdrant', error);
@@ -106,9 +106,8 @@ class VectorDBService {
       );
 
       if (existingCollection) {
-        logger.logVectorDB('Collection already exists', {
+        logger.logVector('Collection already exists', collectionName, {
           knowledgeBaseId,
-          collectionName,
         });
         return collectionName;
       }
@@ -125,9 +124,8 @@ class VectorDBService {
         replication_factor: 1,
       });
 
-      logger.logVectorDB('Collection created', {
+      logger.logVector('Collection created', collectionName, {
         knowledgeBaseId,
-        collectionName,
         vectorSize,
         distance,
       });
@@ -161,9 +159,8 @@ class VectorDBService {
       );
 
       if (!existingCollection) {
-        logger.logVectorDB('Collection does not exist', {
+        logger.logVector('Collection does not exist', collectionName, {
           knowledgeBaseId,
-          collectionName,
         });
         return true;
       }
@@ -171,9 +168,8 @@ class VectorDBService {
       // Delete collection
       await this.client.deleteCollection(collectionName);
 
-      logger.logVectorDB('Collection deleted', {
+      logger.logVector('Collection deleted', collectionName, {
         knowledgeBaseId,
-        collectionName,
       });
 
       return true;
@@ -222,9 +218,8 @@ class VectorDBService {
           this.client
             .upsert(collectionName, { wait: true, points: batch })
             .then((result) => {
-              logger.logVectorDB('Vector batch inserted', {
+              logger.logVector('Vector batch inserted', collectionName, {
                 knowledgeBaseId,
-                collectionName,
                 batchSize: batch.length,
                 batchIndex,
                 totalBatches,
@@ -235,9 +230,8 @@ class VectorDBService {
       }
       const results = await Promise.all(batchTasks);
 
-      logger.logVectorDB('All vectors inserted', {
+      logger.logVector('All vectors inserted', collectionName, {
         knowledgeBaseId,
-        collectionName,
         totalVectors: points.length,
         totalBatches: results.length,
       });
@@ -251,7 +245,10 @@ class VectorDBService {
       logger.logError('Failed to insert vectors', error, {
         knowledgeBaseId,
         vectorCount: vectors.length,
+        errorMessage: error.message,
+        errorStack: error.stack
       });
+      logger.logError('Original error:', error);
       throw new VectorDBError('Failed to insert vectors', error.message);
     }
   }
@@ -309,9 +306,8 @@ class VectorDBService {
         vector: withVector ? point.vector : undefined,
       }));
 
-      logger.logVectorDB('Vector search completed', {
+      logger.logVector('Vector search completed', collectionName, {
         knowledgeBaseId,
-        collectionName,
         queryVectorSize: queryVector.length,
         resultCount: results.length,
         limit,
@@ -351,9 +347,8 @@ class VectorDBService {
         },
       });
 
-      logger.logVectorDB('Vectors deleted by document', {
+      logger.logVector('Vectors deleted by document', collectionName, {
         knowledgeBaseId,
-        collectionName,
         documentId,
         operation_id: result.operation_id,
       });
@@ -381,9 +376,8 @@ class VectorDBService {
 
       const info = await this.client.getCollection(collectionName);
 
-      logger.logVectorDB('Collection info retrieved', {
+      logger.logVector('Collection info retrieved', collectionName, {
         knowledgeBaseId,
-        collectionName,
         vectorsCount: info.vectors_count,
         indexedVectorsCount: info.indexed_vectors_count,
       });
@@ -425,9 +419,8 @@ class VectorDBService {
         points: [pointId],
       });
 
-      logger.logVectorDB('Vector payload updated', {
+      logger.logVector('Vector payload updated', collectionName, {
         knowledgeBaseId,
-        collectionName,
         pointId,
         operation_id: result.operation_id,
       });
@@ -484,9 +477,8 @@ class VectorDBService {
         points: pointIds,
       });
 
-      logger.logVectorDB('Vectors deleted by IDs', {
+      logger.logVector('Vectors deleted by IDs', collectionName, {
         knowledgeBaseId,
-        collectionName,
         deletedCount: pointIds.length,
         operation_id: result.operation_id,
       });
@@ -528,9 +520,8 @@ class VectorDBService {
         filter,
       });
 
-      logger.logVectorDB('Points scrolled', {
+      logger.logVector('Points scrolled', collectionName, {
         knowledgeBaseId,
-        collectionName,
         pointCount: result.points.length,
         nextPageOffset: result.next_page_offset,
       });

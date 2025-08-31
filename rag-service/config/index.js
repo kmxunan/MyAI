@@ -20,8 +20,8 @@ class RAGConfigManager {
     return {
       // 服务器配置
       server: {
-        port: this.getNumber('RAG_PORT', 8000),
-        host: this.getString('RAG_HOST', '0.0.0.0'),
+        port: this.getNumber('PORT', 3002),
+        host: this.getString('HOST', '0.0.0.0'),
         env: this.env,
         corsOrigins: this.getArray('RAG_ALLOWED_ORIGINS', ['http://localhost:3000', 'http://localhost:5000'])
       },
@@ -191,7 +191,7 @@ class RAGConfigManager {
 
     // 验证端口号
     if (this.config.server.port < 1 || this.config.server.port > 65535) {
-      errors.push('RAG_PORT must be between 1 and 65535');
+      errors.push('PORT must be between 1 and 65535');
     }
 
     // 验证向量维度

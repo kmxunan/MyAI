@@ -283,39 +283,55 @@ router.get('/', optionalAuth, validatePagination, checkValidation, catchAsync(as
   let result = await cache.get(cacheKey);
 
   if (!result) {
-    // Simulate database query (replace with actual implementation)
-    let mockKnowledgeBases = [];
+    // Get all knowledge bases for this user from cache
+    const pattern = `kb:name:${userId}:*`;
+    logger.info(`Searching for knowledge bases with pattern: ${pattern}`);
+    const userKbKeys = await cache.keys(pattern);
+    logger.info(`Found ${userKbKeys.length} keys:`, userKbKeys);
+    const knowledgeBases = [];
+    
+    for (const key of userKbKeys) {
+      const kbId = await cache.get(key);
+      logger.info(`Key ${key} -> ID: ${kbId}`);
+      if (kbId) {
+        const kbData = await cache.get(`kb:${kbId}`);
+        logger.info(`KB data for ${kbId}:`, kbData ? 'found' : 'not found');
+        if (kbData) {
+          try {
+            // Parse JSON if it's a string
+            const kb = typeof kbData === 'string' ? JSON.parse(kbData) : kbData;
+            knowledgeBases.push(kb);
+            logger.info(`Added KB: ${kb.name}`);
+          } catch (error) {
+            logger.error('Error parsing knowledge base data:', error);
+          }
+        }
+      }
+    }
+    
+    logger.info(`Total knowledge bases found: ${knowledgeBases.length}`);
 
-    // Only return data for authenticated users
-    if (req.user?.id) {
-      mockKnowledgeBases = [
-        {
-          id: '507f1f77bcf86cd799439011',
-          name: 'Technical Documentation',
-          description: 'Company technical documentation and API references',
-          userId,
-          settings: {
-            embeddingModel: 'text-embedding-3-small',
-            chunkSize: 1000,
-            chunkOverlap: 200,
-          },
-          tags: ['technical', 'api', 'documentation'],
-          documentCount: 25,
-          totalSize: 1024000,
-          status: 'active',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ];
+    // Apply search filter if provided
+    let filteredKbs = knowledgeBases;
+    if (search) {
+      filteredKbs = knowledgeBases.filter(kb => 
+        kb.name.toLowerCase().includes(search.toLowerCase()) ||
+        kb.description.toLowerCase().includes(search.toLowerCase())
+      );
     }
 
+    // Apply pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit, 10);
+    const paginatedKbs = filteredKbs.slice(startIndex, endIndex);
+
     result = {
-      data: mockKnowledgeBases,
+      data: paginatedKbs,
       pagination: {
         page: parseInt(page, 10),
         limit: parseInt(limit, 10),
-        total: mockKnowledgeBases.length,
-        pages: Math.ceil(mockKnowledgeBases.length / limit),
+        total: filteredKbs.length,
+        pages: Math.ceil(filteredKbs.length / limit),
       },
     };
 
@@ -418,7 +434,7 @@ router.post('/', optionalAuth, validateKnowledgeBase, checkValidation, catchAsyn
 
   // Create new knowledge base (simulate database operation)
   const knowledgeBase = {
-    id: '507f1f77bcf86cd799439012',
+    id: new mongoose.Types.ObjectId().toString(),
     name,
     description: description || '',
     userId,

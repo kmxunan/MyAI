@@ -83,11 +83,26 @@ const RAG = () => {
           currentKnowledgeBase = knowledgeBases.data[0];
         } else {
           // 创建默认知识库
-          const newKnowledgeBase = await ragService.createKnowledgeBase({
-            name: '默认知识库',
-            description: '用于存储和查询文档的默认知识库'
-          });
-          currentKnowledgeBase = newKnowledgeBase.data;
+          try {
+            const newKnowledgeBase = await ragService.createKnowledgeBase({
+              name: '默认知识库',
+              description: '用于存储和查询文档的默认知识库'
+            });
+            currentKnowledgeBase = newKnowledgeBase.data;
+          } catch (createError) {
+            // 如果创建失败（可能是409冲突），重新获取知识库列表
+            if (createError.response?.status === 409) {
+              console.log('知识库已存在，重新获取列表');
+              const retryResponse = await ragService.getKnowledgeBases();
+              if (retryResponse.data && retryResponse.data.length > 0) {
+                currentKnowledgeBase = retryResponse.data[0];
+              } else {
+                throw new Error('无法获取或创建默认知识库');
+              }
+            } else {
+              throw createError;
+            }
+          }
         }
         
         setKnowledgeBase(currentKnowledgeBase);
