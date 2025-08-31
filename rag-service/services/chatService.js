@@ -11,10 +11,6 @@ class ChatService {
       openrouterApiKey: process.env.OPENROUTER_API_KEY,
       openrouterBaseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
 
-      // OpenAI Configuration (fallback)
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      openaiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-
       // Default settings
       defaultModel: process.env.CHAT_MODEL || 'openai/gpt-3.5-turbo',
       maxTokens: parseInt(process.env.CHAT_MAX_TOKENS, 10) || 2000,
@@ -439,24 +435,14 @@ class ChatService {
         throw new AppError(`Unsupported model: ${model}`, 400);
       }
 
-      let apiUrl; let headers;
-
-      if (modelConfig.provider === 'openrouter') {
-        apiUrl = `${this.config.openrouterBaseUrl}/chat/completions`;
-        const referer = process.env.OPENROUTER_REFERER || 'http://localhost:3000';
-        headers = {
-          Authorization: `Bearer ${this.config.openrouterApiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': referer,
-          'X-Title': 'MyAI RAG Service',
-        };
-      } else {
-        apiUrl = `${this.config.openaiBaseUrl}/chat/completions`;
-        headers = {
-          Authorization: `Bearer ${this.config.openaiApiKey}`,
-          'Content-Type': 'application/json',
-        };
-      }
+      const apiUrl = `${this.config.openrouterBaseUrl}/chat/completions`;
+      const referer = process.env.OPENROUTER_HTTP_REFERER || 'http://localhost:3000';
+      const headers = {
+        Authorization: `Bearer ${this.config.openrouterApiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': referer,
+        'X-Title': 'MyAI RAG Service',
+      };
 
       const requestBody = {
         model,
@@ -529,24 +515,14 @@ class ChatService {
         throw new AppError(`Model ${model} does not support streaming`, 400);
       }
 
-      let apiUrl; let headers;
-
-      if (modelConfig.provider === 'openrouter') {
-        apiUrl = `${this.config.openrouterBaseUrl}/chat/completions`;
-        const referer = process.env.OPENROUTER_REFERER || 'http://localhost:3000';
-        headers = {
-          Authorization: `Bearer ${this.config.openrouterApiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': referer,
-          'X-Title': 'MyAI RAG Service',
-        };
-      } else {
-        apiUrl = `${this.config.openaiBaseUrl}/chat/completions`;
-        headers = {
-          Authorization: `Bearer ${this.config.openaiApiKey}`,
-          'Content-Type': 'application/json',
-        };
-      }
+      const apiUrl = `${this.config.openrouterBaseUrl}/chat/completions`;
+      const referer = process.env.OPENROUTER_HTTP_REFERER || 'http://localhost:3000';
+      const headers = {
+        Authorization: `Bearer ${this.config.openrouterApiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': referer,
+        'X-Title': 'MyAI RAG Service',
+      };
 
       const requestBody = {
         model,

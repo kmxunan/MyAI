@@ -8,16 +8,12 @@ const { cache } = require('../config/redis');
 class EmbeddingService {
   constructor() {
     this.config = {
-      // OpenAI Configuration
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      openaiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-
-      // OpenRouter Configuration (alternative)
+      // OpenRouter Configuration
       openrouterApiKey: process.env.OPENROUTER_API_KEY,
       openrouterBaseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
 
       // Default settings
-      defaultModel: process.env.EMBEDDING_MODEL || 'text-embedding-ada-002',
+      defaultModel: process.env.EMBEDDING_MODEL || 'openai/text-embedding-ada-002',
       maxTokens: parseInt(process.env.EMBEDDING_MAX_TOKENS, 10) || 8191,
       batchSize: parseInt(process.env.EMBEDDING_BATCH_SIZE, 10) || 100,
       timeout: parseInt(process.env.EMBEDDING_TIMEOUT, 10) || 30000,
@@ -28,20 +24,20 @@ class EmbeddingService {
     };
 
     this.supportedModels = {
-      'text-embedding-ada-002': {
-        provider: 'openai',
+      'openai/text-embedding-ada-002': {
+        provider: 'openrouter',
         dimensions: 1536,
         maxTokens: 8191,
         costPer1kTokens: 0.0001,
       },
-      'text-embedding-3-small': {
-        provider: 'openai',
+      'openai/text-embedding-3-small': {
+        provider: 'openrouter',
         dimensions: 1536,
         maxTokens: 8191,
         costPer1kTokens: 0.00002,
       },
-      'text-embedding-3-large': {
-        provider: 'openai',
+      'openai/text-embedding-3-large': {
+        provider: 'openrouter',
         dimensions: 3072,
         maxTokens: 8191,
         costPer1kTokens: 0.00013,
@@ -250,25 +246,14 @@ class EmbeddingService {
       let apiUrl; let headers; let
         requestBody;
 
-      if (modelConfig.provider === 'openai') {
-        // Use OpenAI API or OpenRouter
-        const useOpenRouter = !this.config.openaiApiKey && this.config.openrouterApiKey;
-
-        if (useOpenRouter) {
-          apiUrl = `${this.config.openrouterBaseUrl}/embeddings`;
-          headers = {
-            Authorization: `Bearer ${this.config.openrouterApiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.OPENROUTER_REFERER || 'http://localhost:3000',
-            'X-Title': 'MyAI RAG Service',
-          };
-        } else {
-          apiUrl = `${this.config.openaiBaseUrl}/embeddings`;
-          headers = {
-            Authorization: `Bearer ${this.config.openaiApiKey}`,
-            'Content-Type': 'application/json',
-          };
-        }
+      if (modelConfig.provider === 'openrouter') {
+        apiUrl = `${this.config.openrouterBaseUrl}/embeddings`;
+        headers = {
+          Authorization: `Bearer ${this.config.openrouterApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.OPENROUTER_HTTP_REFERER || 'http://localhost:3000',
+          'X-Title': 'MyAI RAG Service',
+        };
 
         requestBody = {
           model,
@@ -380,8 +365,8 @@ class EmbeddingService {
   validateConfig() {
     const errors = [];
 
-    if (!this.config.openaiApiKey && !this.config.openrouterApiKey) {
-      errors.push('No API key configured (OPENAI_API_KEY or OPENROUTER_API_KEY required)');
+    if (!this.config.openrouterApiKey) {
+      errors.push('OpenRouter API key is required (OPENROUTER_API_KEY)');
     }
 
     if (!this.supportedModels[this.config.defaultModel]) {

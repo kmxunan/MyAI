@@ -25,8 +25,8 @@ const searchRoutes = require('./routes/search');
 const chatRoutes = require('./routes/chat');
 
 // 导入服务（用于初始化）
-const VectorDBService = require('./services/vectorDB');
-const embeddingService = require('./services/embedding');
+const VectorDBService = require('./services/vectorService');
+const embeddingService = require('./services/embeddingService');
 const documentProcessor = require('./services/documentProcessor');
 
 class RAGServiceApp {

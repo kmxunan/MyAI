@@ -14,7 +14,7 @@ const {
 const rateLimit = require('express-rate-limit');
 const logger = require('../utils/logger');
 const { cache } = require('../config/redis');
-const vectorService = require('../services/vector');
+const vectorService = require('../services/vectorService');
 const {
   catchAsync,
   ValidationError,

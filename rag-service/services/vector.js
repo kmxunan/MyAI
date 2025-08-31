@@ -42,22 +42,24 @@ const initializeCollection = async () => {
 };
 
 /**
- * Generate embeddings using OpenAI API
+ * Generate embeddings using OpenRouter API
  * @param {string} text - Text to generate embedding for
  * @returns {Promise<number[]>} - Embedding vector
  */
 const generateEmbedding = async (text) => {
   try {
     const response = await axios.post(
-      'https://api.openai.com/v1/embeddings',
+      `${process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'}/embeddings`,
       {
         input: text,
-        model: 'text-embedding-ada-002',
+        model: 'openai/text-embedding-ada-002',
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.OPENROUTER_HTTP_REFERER || 'http://localhost:3000',
+          'X-Title': process.env.OPENROUTER_X_TITLE || 'RAG Service',
         },
       },
     );

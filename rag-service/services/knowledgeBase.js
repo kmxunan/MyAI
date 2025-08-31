@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const logger = require('../utils/logger');
 const { KnowledgeBaseError } = require('../middleware/errorHandler');
-const vectorDBService = require('./vectorDB');
+const vectorDBService = require('./vectorService');
 const documentProcessor = require('./documentProcessor');
 const searchService = require('./searchService');
 

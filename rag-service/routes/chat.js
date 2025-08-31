@@ -13,8 +13,8 @@ const {
   ValidationError,
   NotFoundError,
 } = require('../middleware/errorHandler');
-const vectorService = require('../services/vector');
-const llmService = require('../services/llm');
+const vectorService = require('../services/vectorService');
+const llmService = require('../services/llmService');
 // const { authorize, requirePermissions } = require('../middleware/auth');
 
 const router = express.Router();

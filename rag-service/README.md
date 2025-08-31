@@ -12,7 +12,7 @@ A comprehensive RAG (Retrieval-Augmented Generation) service that provides intel
 - **Semantic Search**: Advanced search capabilities with embedding-based retrieval
 - **AI Chat**: RAG-powered conversational AI with context-aware responses
 - **Knowledge Base Management**: Organize documents into searchable knowledge bases
-- **Multi-Model Support**: Compatible with OpenAI and OpenRouter APIs
+- **Multi-Model Support**: Compatible with OpenRouter API
 
 ### Technical Features
 - **Scalable Architecture**: Built with Express.js and MongoDB

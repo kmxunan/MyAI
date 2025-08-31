@@ -348,8 +348,8 @@ const useChatStore = create(
           
           const fallbackModels = [
             { id: userDefaultModel, name: userDefaultModel.replace('/', ' ').replace(/\b\w/g, l => l.toUpperCase()) },
-            { id: 'openai/gpt-3.5-turbo', name: 'OpenAI GPT-3.5 Turbo' },
-            { id: 'openai/gpt-4-turbo', name: 'OpenAI GPT-4 Turbo' },
+            { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo (via OpenRouter)' },
+            { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo (via OpenRouter)' },
             { id: 'anthropic/claude-3.5-sonnet', name: 'Anthropic Claude 3.5 Sonnet' },
             { id: 'google/gemini-pro', name: 'Google Gemini Pro' }
           ].filter((model, index, self) => 
@@ -372,8 +372,8 @@ const useChatStore = create(
           
           const fallbackModels = [
             { id: userDefaultModel, name: userDefaultModel.replace('/', ' ').replace(/\b\w/g, l => l.toUpperCase()) },
-            { id: 'openai/gpt-3.5-turbo', name: 'OpenAI GPT-3.5 Turbo' },
-            { id: 'openai/gpt-4-turbo', name: 'OpenAI GPT-4 Turbo' },
+            { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo (via OpenRouter)' },
+            { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo (via OpenRouter)' },
             { id: 'anthropic/claude-3.5-sonnet', name: 'Anthropic Claude 3.5 Sonnet' },
             { id: 'google/gemini-pro', name: 'Google Gemini Pro' }
           ].filter((model, index, self) => 

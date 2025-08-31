@@ -13,7 +13,7 @@ const {
   NotFoundError,
   VectorDBError,
 } = require('../middleware/errorHandler');
-const vectorService = require('../services/vector');
+const vectorService = require('../services/vectorService');
 const Document = require('../models/Document');
 // const { authorize, requirePermissions } = require('../middleware/auth');
 

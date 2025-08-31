@@ -7,8 +7,8 @@ const cheerio = require('cheerio');
 const { convert } = require('html-to-text');
 const logger = require('../utils/logger');
 const { DocumentProcessingError } = require('../middleware/errorHandler');
-const embeddingService = require('./embedding');
-const vectorDBService = require('./vectorDB');
+const embeddingService = require('./embeddingService');
+const vectorDBService = require('./vectorService');
 
 class DocumentProcessor {
   constructor() {

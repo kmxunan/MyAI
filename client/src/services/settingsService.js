@@ -17,7 +17,7 @@ const defaultSettings = {
     dataCollection: true
   },
   ai: {
-    defaultModel: 'openai/gpt-3.5-turbo',
+    defaultModel: 'openai/gpt-3.5-turbo', // via OpenRouter
     temperature: 0.7,
     maxTokens: 2048,
     streamResponse: true

@@ -6,16 +6,12 @@ const { cache } = require('../config/redis');
 class LLMService {
   constructor() {
     this.config = {
-      // OpenAI Configuration
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      openaiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-
-      // OpenRouter Configuration (alternative)
+      // OpenRouter Configuration
       openrouterApiKey: process.env.OPENROUTER_API_KEY,
       openrouterBaseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
 
       // Default settings
-      defaultModel: process.env.LLM_MODEL || 'gpt-3.5-turbo',
+      defaultModel: process.env.LLM_MODEL || 'openai/gpt-3.5-turbo',
       maxTokens: parseInt(process.env.LLM_MAX_TOKENS, 10) || 4096,
       temperature: parseFloat(process.env.LLM_TEMPERATURE) || 0.7,
       timeout: parseInt(process.env.LLM_TIMEOUT, 10) || 60000,
@@ -26,26 +22,25 @@ class LLMService {
     };
 
     this.supportedModels = {
-      // OpenAI Models
-      'gpt-4': {
-        provider: 'openai',
+      // OpenRouter Models
+      'openai/gpt-4': {
+        provider: 'openrouter',
         maxTokens: 8192,
         contextWindow: 8192,
         costPer1kTokens: { input: 0.03, output: 0.06 },
       },
-      'gpt-4-turbo': {
-        provider: 'openai',
+      'openai/gpt-4-turbo': {
+        provider: 'openrouter',
         maxTokens: 4096,
         contextWindow: 128000,
         costPer1kTokens: { input: 0.01, output: 0.03 },
       },
-      'gpt-3.5-turbo': {
-        provider: 'openai',
+      'openai/gpt-3.5-turbo': {
+        provider: 'openrouter',
         maxTokens: 4096,
         contextWindow: 16385,
         costPer1kTokens: { input: 0.0015, output: 0.002 },
       },
-      // OpenRouter Models
       'anthropic/claude-3-sonnet': {
         provider: 'openrouter',
         maxTokens: 4096,
@@ -228,26 +223,18 @@ class LLMService {
    * Get provider configuration
    */
   getProviderConfig(provider) {
-    switch (provider) {
-    case 'openai':
-      if (!this.config.openaiApiKey) {
-        throw new LLMError('OpenAI API key not configured');
-      }
-      return {
-        apiKey: this.config.openaiApiKey,
-        baseUrl: this.config.openaiBaseUrl,
-      };
-    case 'openrouter':
-      if (!this.config.openrouterApiKey) {
-        throw new LLMError('OpenRouter API key not configured');
-      }
-      return {
-        apiKey: this.config.openrouterApiKey,
-        baseUrl: this.config.openrouterBaseUrl,
-      };
-    default:
-      throw new LLMError(`Unsupported provider: ${provider}`);
+    if (provider !== 'openrouter') {
+      throw new LLMError(`Unsupported provider: ${provider}. Only OpenRouter is supported.`);
     }
+    
+    if (!this.config.openrouterApiKey) {
+      throw new LLMError('OpenRouter API key not configured');
+    }
+    
+    return {
+      apiKey: this.config.openrouterApiKey,
+      baseUrl: this.config.openrouterBaseUrl,
+    };
   }
 
   /**
@@ -338,8 +325,8 @@ class LLMService {
   validateConfig() {
     const errors = [];
 
-    if (!this.config.openaiApiKey && !this.config.openrouterApiKey) {
-      errors.push('At least one API key (OpenAI or OpenRouter) must be configured');
+    if (!this.config.openrouterApiKey) {
+      errors.push('OpenRouter API key must be configured');
     }
 
     if (this.config.maxTokens <= 0) {
@@ -372,7 +359,6 @@ class LLMService {
           maxTokens: this.config.maxTokens,
           temperature: this.config.temperature,
           cacheEnabled: this.config.cacheEnabled,
-          hasOpenAIKey: !!this.config.openaiApiKey,
           hasOpenRouterKey: !!this.config.openrouterApiKey,
         },
         supportedModels: this.getSupportedModels(),
