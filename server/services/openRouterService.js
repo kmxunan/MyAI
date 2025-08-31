@@ -65,7 +65,25 @@ class OpenRouterService {
       try {
         return await operation();
       } catch (error) {
+        // 详细记录错误信息
+        const errorDetails = {
+          message: error.message,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: JSON.stringify(error.response?.data, null, 2),
+          headers: error.response?.headers,
+          config: {
+            url: error.config?.url,
+            method: error.config?.method,
+            data: error.config?.data
+          }
+        };
+        
         if (attempt === retries) {
+          logger.error('OpenRouter API call failed after all retries', {
+            ...errorDetails,
+            totalAttempts: retries
+          });
           throw error;
         }
         
@@ -74,20 +92,11 @@ class OpenRouterService {
           const delay = this.retryDelay * Math.pow(2, attempt - 1); // 指数退避
           logger.warn(`OpenRouter API call failed, retrying in ${delay}ms`, {
             attempt,
-            error: error.message,
-            status: error.response?.status
+            ...errorDetails
           });
           await this.delay(delay);
         } else {
-          // 输出完整的错误信息用于调试（特别是400错误）
-          console.log('OpenRouter API Error (not retrying):');
-          console.log('Status:', error.response?.status);
-          console.log('StatusText:', error.response?.statusText);
-          console.log('Error Data:', JSON.stringify(error.response?.data, null, 2));
-          console.log('Message:', error.message);
-          if (error.config?.data) {
-            console.log('Request Data:', error.config.data);
-          }
+          logger.error('OpenRouter API Error (not retrying)', errorDetails);
           throw error;
         }
       }
@@ -159,7 +168,8 @@ class OpenRouterService {
         messageCount: messages.length,
         temperature,
         maxTokens,
-        stream
+        stream,
+        requestData
       });
 
       const response = await client.post('/chat/completions', requestData);

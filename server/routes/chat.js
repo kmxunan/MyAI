@@ -779,11 +779,22 @@ router.post('/conversations/:id/messages',
       ];
       
       // 构建正确的OpenRouter模型ID格式 (provider/model-name)
-      console.log('Original conversation model:', JSON.stringify(conversation.model, null, 2));
-      const modelId = conversation.model.provider && conversation.model.name 
-        ? `${conversation.model.provider}/${conversation.model.name}`
-        : conversation.model.name || 'openai/gpt-3.5-turbo'; // 默认模型
-      console.log('Constructed modelId:', modelId);
+      let modelId;
+      if (conversation.model.provider && conversation.model.name) {
+        modelId = `${conversation.model.provider}/${conversation.model.name}`;
+      } else if (conversation.model.name && conversation.model.name !== 'auto') {
+        // 如果只有模型名且不是'auto'，尝试使用
+        modelId = conversation.model.name;
+      } else {
+        modelId = 'openai/gpt-3.5-turbo';
+      }
+      
+      // 验证模型是否有效
+      const isValidModel = await openRouterService.validateModel(modelId);
+      if (!isValidModel) {
+        console.warn(`Invalid model '${modelId}' for conversation ${id}, using default model`);
+        modelId = 'openai/gpt-3.5-turbo';
+      }
       
       // 调用OpenRouter API
       const aiResponse = await openRouterService.chatCompletion({
@@ -801,7 +812,7 @@ router.post('/conversations/:id/messages',
       const outputTokens = aiResponse.usage.completion_tokens;
       const totalTokens = aiResponse.usage.total_tokens;
       const outputCost = await openRouterService.calculateCost(
-        conversation.model.name,
+        modelId,
         aiResponse.usage.prompt_tokens,
         outputTokens
       );
@@ -849,9 +860,19 @@ router.post('/conversations/:id/messages',
       
     } catch (aiError) {
       // 输出完整的错误信息用于调试
-      console.log('OpenRouter API Error Details:', JSON.stringify(aiError, null, 2));
+      console.log('OpenRouter API Error Details:', {
+        message: aiError.message,
+        status: aiError.response?.status,
+        statusText: aiError.response?.statusText,
+        data: aiError.response?.data,
+        config: {
+          url: aiError.config?.url,
+          method: aiError.config?.method,
+          data: aiError.config?.data
+        }
+      });
       if (aiError.response && aiError.response.data) {
-        console.log('OpenRouter Error Response:', JSON.stringify(aiError.response.data, null, 2));
+        console.log('OpenRouter Error Response:', aiError.response.data);
       }
       
       logger.logError('AI response generation failed', aiError, {
