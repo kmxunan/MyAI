@@ -15,9 +15,9 @@ const useAuthStore = create(
 
       // 登录
       login: async (credentials) => {
-        set({ isLoading: true, error: null });
-        try {
-          const response = await authService.login(credentials);
+    set({ isLoading: true, error: null });
+    try {
+      const response = await authService.login(credentials);
           const { user, tokens } = response.data.data;
           const token = tokens.accessToken;
           

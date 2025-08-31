@@ -29,25 +29,15 @@ class ChatService {
       streamingEnabled: process.env.STREAMING_ENABLED !== 'false',
     };
 
-    // 动态模型缓存
-    this.modelsCache = new Map();
-    this.modelsCacheExpiry = 60 * 60 * 1000; // 1小时缓存
-    this.modelsCacheTimestamp = null;
+    // 移除模型缓存，改为实时获取
   }
 
   /**
-   * 动态获取支持的模型列表
+   * 实时获取支持的模型列表
    */
   async getSupportedModels() {
     try {
-      // 检查缓存是否有效
-      if (this.modelsCache.size > 0
-          && this.modelsCacheTimestamp
-          && Date.now() - this.modelsCacheTimestamp < this.modelsCacheExpiry) {
-        return Object.fromEntries(this.modelsCache);
-      }
-
-      // 从OpenRouter API获取模型列表
+      // 从OpenRouter API实时获取模型列表
       const response = await axios.get(`${this.config.openrouterBaseUrl}/models`, {
         headers: {
           Authorization: `Bearer ${this.config.openrouterApiKey}`,
@@ -60,7 +50,7 @@ class ChatService {
         throw new AppError('Invalid models response from OpenRouter', 500);
       }
 
-      // 处理模型数据并缓存
+      // 处理模型数据
       const models = {};
       response.data.data.forEach((model) => {
         if (model.id && model.context_length) {
@@ -74,14 +64,7 @@ class ChatService {
         }
       });
 
-      // 更新缓存
-      this.modelsCache.clear();
-      Object.entries(models).forEach(([key, value]) => {
-        this.modelsCache.set(key, value);
-      });
-      this.modelsCacheTimestamp = Date.now();
-
-      logger.info('Models cache updated', {
+      logger.info('Models fetched successfully', {
         modelCount: Object.keys(models).length,
         timestamp: new Date().toISOString(),
       });
@@ -89,24 +72,7 @@ class ChatService {
       return models;
     } catch (error) {
       logger.logError('Failed to get supported models', error);
-
-      // 如果API调用失败，返回基本的fallback模型
-      const fallbackModels = {
-        'openai/gpt-3.5-turbo': {
-          provider: 'openrouter',
-          maxTokens: 4096,
-          contextWindow: 16385,
-          streaming: true,
-        },
-        'openai/gpt-4': {
-          provider: 'openrouter',
-          maxTokens: 8192,
-          contextWindow: 8192,
-          streaming: true,
-        },
-      };
-
-      return fallbackModels;
+      throw error;
     }
   }
 

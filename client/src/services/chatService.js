@@ -59,6 +59,11 @@ class ChatService {
       const response = await this.api.delete(`/chat/conversations/${conversationId}`);
       return response.data;
     } catch (error) {
+      // 如果是404错误，说明对话已经不存在，静默处理
+      if (error.response?.status === 404) {
+        console.warn(`对话 ${conversationId} 不存在，可能已被删除`);
+        return { success: true, message: '对话已删除' };
+      }
       console.error('删除对话失败:', error);
       throw error;
     }

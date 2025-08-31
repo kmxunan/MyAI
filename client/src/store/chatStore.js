@@ -49,6 +49,29 @@ const useChatStore = create(
       // 设置加载状态
       setLoading: (isLoading) => set({ isLoading }),
       
+      // 验证当前对话是否仍然有效
+      validateCurrentConversation: async () => {
+        const { currentConversation } = get();
+        if (!currentConversation) return;
+        
+        const conversationId = currentConversation.id || currentConversation._id;
+        if (!conversationId) {
+          set({ currentConversation: null });
+          return;
+        }
+        
+        try {
+          await chatService.getConversation(conversationId);
+          // 如果成功，说明对话仍然有效，不需要做任何操作
+        } catch (error) {
+          // 如果失败（特别是404），清除无效的对话
+          if (error.response?.status === 404) {
+            console.warn(`清除无效的持久化对话: ${conversationId}`);
+            set({ currentConversation: null, messages: [] });
+          }
+        }
+      },
+      
       // 设置流式状态
       setStreaming: (isStreaming) => set({ isStreaming }),
       
@@ -96,6 +119,22 @@ const useChatStore = create(
         try {
           set({ isLoading: true, error: null });
           
+          // 客户端模型验证
+          const { supportedModels } = get();
+          if (data.model && supportedModels.length > 0) {
+            const modelId = data.model.provider && data.model.name 
+              ? `${data.model.provider}/${data.model.name}`
+              : data.model.name || data.model.id;
+            
+            const isValidModel = supportedModels.some(m => m.id === modelId);
+            if (!isValidModel) {
+              const errorMsg = `模型 '${modelId}' 不可用，请选择其他模型`;
+              set({ error: errorMsg, isLoading: false });
+              toast.error(errorMsg);
+              throw new Error(errorMsg);
+            }
+          }
+          
           const response = await chatService.createConversation(data);
           
           set((state) => ({
@@ -108,8 +147,15 @@ const useChatStore = create(
           toast.success('对话创建成功');
           return response.data;
         } catch (error) {
-          set({ error: error.message, isLoading: false });
-          toast.error('创建对话失败');
+          // 处理服务器返回的模型验证错误
+          if (error.response?.data?.code === 'INVALID_MODEL') {
+            const errorMsg = error.response.data.message || '所选模型不可用';
+            set({ error: errorMsg, isLoading: false });
+            toast.error(errorMsg);
+          } else {
+            set({ error: error.message, isLoading: false });
+            toast.error('创建对话失败');
+          }
           throw error;
         }
       },
@@ -138,6 +184,18 @@ const useChatStore = create(
           
           return response.data;
         } catch (error) {
+          // 如果是404错误（对话不存在），清除当前对话而不显示错误
+          if (error.response?.status === 404) {
+            set({ 
+              currentConversation: null, 
+              messages: [], 
+              isLoading: false, 
+              error: null 
+            });
+            console.warn(`对话 ${conversationId} 不存在，已清除当前对话`);
+            return null;
+          }
+          
           set({ error: error.message, isLoading: false });
           toast.error('获取对话失败');
           throw error;
@@ -175,7 +233,7 @@ const useChatStore = create(
       // 删除对话
       deleteConversation: async (conversationId) => {
         try {
-          await chatService.deleteConversation(conversationId);
+          const result = await chatService.deleteConversation(conversationId);
           
           set((state) => ({
             conversations: state.conversations.filter(conv => (conv.id ?? conv._id) !== conversationId),
@@ -185,7 +243,7 @@ const useChatStore = create(
             messages: ((state.currentConversation?.id ?? state.currentConversation?._id) === conversationId) ? [] : state.messages
           }));
           
-          toast.success('对话删除成功');
+          toast.success(result?.message || '对话删除成功');
         } catch (error) {
           set({ error: error.message });
           toast.error('删除对话失败');
@@ -341,23 +399,9 @@ const useChatStore = create(
         // 检查认证状态
         const authState = useAuthStore.getState();
         if (!authState.isAuthenticated || !authState.token) {
-          console.warn('User not authenticated, skipping fetchSupportedModels');
-          // 从用户设置获取默认模型，如果没有则使用系统默认
-          const settingsState = useSettingsStore.getState();
-          const userDefaultModel = settingsState.settings?.ai?.defaultModel || 'openai/gpt-3.5-turbo';
-          
-          const fallbackModels = [
-            { id: userDefaultModel, name: userDefaultModel.replace('/', ' ').replace(/\b\w/g, l => l.toUpperCase()) },
-            { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo (via OpenRouter)' },
-            { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo (via OpenRouter)' },
-            { id: 'anthropic/claude-3.5-sonnet', name: 'Anthropic Claude 3.5 Sonnet' },
-            { id: 'google/gemini-pro', name: 'Google Gemini Pro' }
-          ].filter((model, index, self) => 
-            index === self.findIndex(m => m.id === model.id)
-          ); // 去重
-          
-          set({ supportedModels: fallbackModels });
-          return fallbackModels;
+          console.warn('User not authenticated, cannot fetch models');
+          set({ supportedModels: [], error: 'User not authenticated' });
+          return [];
         }
         
         try {
@@ -366,23 +410,10 @@ const useChatStore = create(
           set({ supportedModels: models });
           return models;
         } catch (error) {
-          // 从用户设置获取默认模型，如果没有则使用系统默认
-          const settingsState = useSettingsStore.getState();
-          const userDefaultModel = settingsState.settings?.ai?.defaultModel || 'openai/gpt-3.5-turbo';
-          
-          const fallbackModels = [
-            { id: userDefaultModel, name: userDefaultModel.replace('/', ' ').replace(/\b\w/g, l => l.toUpperCase()) },
-            { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo (via OpenRouter)' },
-            { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo (via OpenRouter)' },
-            { id: 'anthropic/claude-3.5-sonnet', name: 'Anthropic Claude 3.5 Sonnet' },
-            { id: 'google/gemini-pro', name: 'Google Gemini Pro' }
-          ].filter((model, index, self) => 
-            index === self.findIndex(m => m.id === model.id)
-          ); // 去重
-          
-          set({ supportedModels: fallbackModels, error: error.message });
-          toast.error('获取模型列表失败，已加载默认模型');
-          return fallbackModels;
+          console.error('Failed to fetch models:', error);
+          set({ supportedModels: [], error: error.message });
+          toast.error('获取模型列表失败，请检查网络连接');
+          throw error;
         }
       },
       

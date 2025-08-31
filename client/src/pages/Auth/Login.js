@@ -104,7 +104,7 @@ const Login = () => {
       await login(formData);
       navigate('/dashboard');
     } catch (error) {
-      // 错误已在store中处理
+      // 错误已经在 authStore 中处理了
     }
   };
 

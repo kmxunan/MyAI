@@ -48,8 +48,9 @@ const createConversationValidation = [
     .withMessage('Invalid conversation type'),
   body('model.provider')
     .optional()
-    .isIn(['openai', 'anthropic', 'google', 'meta', 'mistral', 'cohere', 'perplexity'])
-    .withMessage('Invalid model provider'),
+    .isString()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Model provider must be a valid string'),
   body('model.name')
     .optional()
     .isLength({ min: 1, max: 100 })
@@ -182,6 +183,11 @@ router.get('/conversations',
   catchAsync(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      logger.warn('Conversation creation validation failed', {
+        errors: errors.array(),
+        requestBody: req.body,
+        userId: req.user?.id
+      });
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -305,7 +311,7 @@ router.post('/conversations',
     
     // 获取用户设置中的默认模型
     const user = await User.findById(userId);
-    const userDefaultModel = user.settings?.ai?.defaultModel || 'openai/gpt-3.5-turbo';
+    const userDefaultModel = user.settings?.ai?.defaultModel || 'openai/gpt-4o-mini';
     const [defaultProvider, defaultName] = userDefaultModel.split('/');
     
     const {
@@ -313,13 +319,29 @@ router.post('/conversations',
       type = 'chat',
       model = {
         provider: defaultProvider || 'openai',
-        name: defaultName || 'gpt-3.5-turbo',
+        name: defaultName || 'gpt-4o-mini',
         version: 'latest'
       },
       systemPrompt,
       ragConfig,
       businessContext
     } = req.body;
+
+    // 验证模型是否可用
+    const modelId = `${model.provider}/${model.name}`;
+    const isValidModel = await openRouterService.validateModel(modelId);
+    
+    if (!isValidModel) {
+      logger.warn('Invalid model requested', { modelId, userId });
+      return res.status(400).json({
+        success: false,
+        message: `Model '${modelId}' is not available. Please select a valid model.`,
+        code: 'INVALID_MODEL',
+        availableModels: await openRouterService.getModels().then(data => 
+          data.data.slice(0, 10).map(m => ({ id: m.id, name: m.name }))
+        ).catch(() => [])
+      });
+    }
 
     const conversation = new Conversation({
       user: userId,
@@ -705,11 +727,7 @@ router.post('/conversations/:id/messages',
         output: 0,
         total: inputTokens
       },
-      cost: {
-        input: cost,
-        output: 0,
-        total: cost
-      },
+      cost: cost,
       model: {
         provider: conversation.model.provider,
         name: conversation.model.name,
@@ -740,10 +758,11 @@ router.post('/conversations/:id/messages',
     const startTime = Date.now();
     
     try {
-      // 构建消息历史
+      // 构建消息历史（排除错误消息）
       const messageHistory = await Message.find({
         conversation: id,
-        role: { $in: ['user', 'assistant'] }
+        role: { $in: ['user', 'assistant'] },
+        error: { $exists: false } // 排除包含错误的消息
       })
         .sort({ createdAt: 1 })
         .limit(20) // 限制历史消息数量
@@ -759,9 +778,16 @@ router.post('/conversations/:id/messages',
         { role: 'user', content }
       ];
       
+      // 构建正确的OpenRouter模型ID格式 (provider/model-name)
+      console.log('Original conversation model:', JSON.stringify(conversation.model, null, 2));
+      const modelId = conversation.model.provider && conversation.model.name 
+        ? `${conversation.model.provider}/${conversation.model.name}`
+        : conversation.model.name || 'openai/gpt-3.5-turbo'; // 默认模型
+      console.log('Constructed modelId:', modelId);
+      
       // 调用OpenRouter API
       const aiResponse = await openRouterService.chatCompletion({
-        model: `${conversation.model.provider}/${conversation.model.name}`,
+        model: modelId,
         messages,
         temperature: conversation.settings?.temperature || 0.7,
         maxTokens: conversation.settings?.maxTokens || 2048,
@@ -775,7 +801,7 @@ router.post('/conversations/:id/messages',
       const outputTokens = aiResponse.usage.completion_tokens;
       const totalTokens = aiResponse.usage.total_tokens;
       const outputCost = await openRouterService.calculateCost(
-        `${conversation.model.provider}/${conversation.model.name}`,
+        conversation.model.name,
         aiResponse.usage.prompt_tokens,
         outputTokens
       );
@@ -791,11 +817,7 @@ router.post('/conversations/:id/messages',
           output: outputTokens,
           total: totalTokens
         },
-        cost: {
-          input: outputCost.input || 0,
-          output: outputCost.output || 0,
-          total: outputCost.total || 0
-        },
+        cost: outputCost.total || 0,
         model: {
           provider: conversation.model.provider,
           name: conversation.model.name,
@@ -826,6 +848,12 @@ router.post('/conversations/:id/messages',
       });
       
     } catch (aiError) {
+      // 输出完整的错误信息用于调试
+      console.log('OpenRouter API Error Details:', JSON.stringify(aiError, null, 2));
+      if (aiError.response && aiError.response.data) {
+        console.log('OpenRouter Error Response:', JSON.stringify(aiError.response.data, null, 2));
+      }
+      
       logger.logError('AI response generation failed', aiError, {
         userId,
         conversationId: id,
@@ -840,7 +868,7 @@ router.post('/conversations/:id/messages',
         role: 'assistant',
         parentMessage: userMessage._id,
         tokens: { input: 0, output: 0, total: 0 },
-        cost: { input: 0, output: 0, total: 0 },
+        cost: 0,
         model: {
           provider: conversation.model.provider,
           name: conversation.model.name,

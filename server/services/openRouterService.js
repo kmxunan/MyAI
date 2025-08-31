@@ -13,27 +13,15 @@ class OpenRouterService {
     this.maxRetries = parseInt(process.env.OPENROUTER_MAX_RETRIES) || 3;
     this.retryDelay = parseInt(process.env.OPENROUTER_RETRY_DELAY) || 1000;
     
-    // 默认模型配置
-    this.defaultModels = {
-      chat: process.env.OPENROUTER_DEFAULT_CHAT_MODEL || 'openai/gpt-3.5-turbo',
-      embedding: process.env.OPENROUTER_DEFAULT_EMBEDDING_MODEL || 'openai/text-embedding-ada-002',
-      completion: process.env.OPENROUTER_DEFAULT_COMPLETION_MODEL || 'openai/gpt-3.5-turbo-instruct'
-    };
+    // 移除硬编码默认模型配置，改为从API动态获取
     
     // 模型价格缓存（动态获取）
     this.modelPricingCache = new Map();
     this.pricingCacheExpiry = 60 * 60 * 1000; // 1小时缓存
     
-    // 模型能力映射
-    this.modelCapabilities = {
-      'openai/gpt-4': { maxTokens: 8192, supportsVision: false, supportsFunction: true },
-      'openai/gpt-4-turbo': { maxTokens: 128000, supportsVision: true, supportsFunction: true },
-      'openai/gpt-3.5-turbo': { maxTokens: 4096, supportsVision: false, supportsFunction: true },
-      'anthropic/claude-3-opus': { maxTokens: 200000, supportsVision: true, supportsFunction: false },
-      'anthropic/claude-3-sonnet': { maxTokens: 200000, supportsVision: true, supportsFunction: false },
-      'google/gemini-pro': { maxTokens: 32768, supportsVision: false, supportsFunction: true },
-      'google/gemini-pro-vision': { maxTokens: 32768, supportsVision: true, supportsFunction: true }
-    };
+    // 移除模型缓存，改为实时获取
+    
+    // 移除硬编码模型能力映射，改为从API动态获取
     
     this.validateConfig();
   }
@@ -91,6 +79,15 @@ class OpenRouterService {
           });
           await this.delay(delay);
         } else {
+          // 输出完整的错误信息用于调试（特别是400错误）
+          console.log('OpenRouter API Error (not retrying):');
+          console.log('Status:', error.response?.status);
+          console.log('StatusText:', error.response?.statusText);
+          console.log('Error Data:', JSON.stringify(error.response?.data, null, 2));
+          console.log('Message:', error.message);
+          if (error.config?.data) {
+            console.log('Request Data:', error.config.data);
+          }
           throw error;
         }
       }
@@ -308,13 +305,13 @@ class OpenRouterService {
   }
 
   /**
-   * 获取可用模型列表
+   * 获取可用模型列表（实时获取）
    */
   async getModels() {
     const client = this.createClient();
     
     return await this.withRetry(async () => {
-      logger.debug('Fetching OpenRouter models');
+      logger.debug('Fetching OpenRouter models from API (real-time)');
       
       const response = await client.get('/models');
       
@@ -324,6 +321,20 @@ class OpenRouterService {
 
       return response.data;
     });
+  }
+
+  /**
+   * 验证模型是否可用（实时验证）
+   */
+  async validateModel(modelId) {
+    try {
+      const modelsData = await this.getModels();
+      const models = modelsData.data || [];
+      return models.some(model => model.id === modelId);
+    } catch (error) {
+      logger.error('Failed to validate model:', error.message);
+      return false;
+    }
   }
 
   /**
@@ -501,11 +512,30 @@ class OpenRouterService {
   /**
    * 获取模型能力
    */
-  getModelCapabilities(model) {
-    return this.modelCapabilities[model] || {
+  /**
+   * 从API数据动态获取模型能力
+   */
+  async getModelCapabilities(modelId) {
+    try {
+      const modelInfo = await this.getModelInfo(modelId);
+      if (modelInfo) {
+        return {
+          maxTokens: modelInfo.context_length || 4096,
+          supportsVision: modelInfo.architecture?.modality?.includes('image') || false,
+          supportsFunction: modelInfo.architecture?.instruct_type === 'function' || false,
+          pricing: modelInfo.pricing || null
+        };
+      }
+    } catch (error) {
+      logger.warn(`Failed to get capabilities for model ${modelId}:`, error.message);
+    }
+    
+    // 返回基础默认值
+    return {
       maxTokens: 4096,
       supportsVision: false,
-      supportsFunction: false
+      supportsFunction: false,
+      pricing: null
     };
   }
 

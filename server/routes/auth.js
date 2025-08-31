@@ -37,7 +37,7 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    return req.ip + ':' + (req.body.email || req.body.username || 'unknown');
+    return req.ip + ':' + (req.body.identifier || req.body.email || req.body.username || 'unknown');
   }
 });
 

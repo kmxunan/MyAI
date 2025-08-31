@@ -135,11 +135,24 @@ const SmartChat = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !currentConversation) return;
+    if (!newMessage.trim()) {
+      toast.error('请输入消息内容');
+      return;
+    }
+    
+    if (!currentConversation) {
+      toast.error('请先选择或创建一个对话');
+      return;
+    }
 
     try {
       // 直接使用ID而不是getConvId
       const conversationId = currentConversation.id || currentConversation._id;
+      if (!conversationId) {
+        toast.error('对话ID无效，请重新选择对话');
+        return;
+      }
+      
       console.log('发送消息:', { conversationId, message: newMessage, user, token, isAuthenticated });
       await sendMessage(conversationId, newMessage);
       setNewMessage('');
@@ -148,6 +161,13 @@ const SmartChat = () => {
       console.error('发送消息失败详细错误:', error);
       console.error('错误响应:', error.response?.data);
       console.error('错误状态码:', error.response?.status);
+      
+      // 如果是404错误，说明对话不存在，提示用户重新选择
+      if (error.response?.status === 404) {
+        toast.error('当前对话不存在，请重新选择对话');
+        return;
+      }
+      
       const errorMessage = error.response?.data?.message || error.message || '发送消息失败';
       toast.error(errorMessage);
     }

@@ -143,11 +143,11 @@ const config = {
 
   // 开发配置
   development: {
-    enableDevTools: getEnvBoolean('REACT_APP_ENABLE_DEV_TOOLS', config.app?.env === 'development'),
+    enableDevTools: getEnvBoolean('REACT_APP_ENABLE_DEV_TOOLS', getEnvString('NODE_ENV', 'development') === 'development'),
     enableMockData: getEnvBoolean('REACT_APP_ENABLE_MOCK_DATA', false),
     enableHotReload: getEnvBoolean('REACT_APP_ENABLE_HOT_RELOAD', true),
     logLevel: getEnvString('REACT_APP_LOG_LEVEL', 'info'), // error, warn, info, debug
-    showReduxDevTools: getEnvBoolean('REACT_APP_SHOW_REDUX_DEVTOOLS', config.app?.env === 'development'),
+    showReduxDevTools: getEnvBoolean('REACT_APP_SHOW_REDUX_DEVTOOLS', getEnvString('NODE_ENV', 'development') === 'development'),
   },
 
   // 第三方服务配置

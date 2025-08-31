@@ -14,19 +14,19 @@ class AuthService {
 
     // 请求拦截器
     this.api.interceptors.request.use(
-      (config) => {
+      (requestConfig) => {
         const token = localStorage.getItem(config.auth.tokenKey);
         if (token) {
           try {
             const authData = JSON.parse(token);
             if (authData.state?.token) {
-              config.headers.Authorization = `Bearer ${authData.state.token}`;
+              requestConfig.headers.Authorization = `Bearer ${authData.state.token}`;
             }
           } catch (error) {
             console.error('Error parsing auth token:', error);
           }
         }
-        return config;
+        return requestConfig;
       },
       (error) => {
         return Promise.reject(error);
@@ -117,7 +117,7 @@ class AuthService {
   // 获取当前保存的token（供流式fetch等非axios场景使用）
   getToken() {
     try {
-      const raw = localStorage.getItem('auth-storage');
+      const raw = localStorage.getItem(config.auth.tokenKey);
       if (!raw) return null;
       const data = JSON.parse(raw);
       return data?.state?.token || null;

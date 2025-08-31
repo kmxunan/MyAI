@@ -40,7 +40,7 @@ const conversationSchema = new Schema({
     provider: {
       type: String,
       required: true,
-      enum: ['openai', 'anthropic', 'google', 'meta', 'mistral', 'cohere']
+      maxlength: [50, 'Provider name cannot exceed 50 characters']
     },
     name: {
       type: String,

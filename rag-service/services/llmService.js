@@ -10,13 +10,11 @@ class LLMService {
   constructor() {
     this.openRouterApiKey = process.env.OPENROUTER_API_KEY;
     this.baseURL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
-    this.defaultModel = process.env.DEFAULT_LLM_MODEL || 'openai/gpt-3.5-turbo';
+    // 移除硬编码默认模型，改为从API动态获取
     this.maxRetries = parseInt(process.env.LLM_MAX_RETRIES) || 3;
     this.timeout = parseInt(process.env.LLM_TIMEOUT) || 30000;
     
-    this.supportedModels = new Map();
-    this.modelCache = new Map();
-    this.cacheExpiry = 5 * 60 * 1000; // 5分钟缓存
+    this.supportedModels = new Map(); // 实时获取，不缓存
     
     this.stats = {
       requestCount: 0,
@@ -43,18 +41,10 @@ class LLMService {
   }
 
   /**
-   * 加载支持的模型列表
+   * 实时加载支持的模型列表（移除缓存）
    */
   async loadSupportedModels() {
     try {
-      const cacheKey = 'supported_models';
-      const cached = this.modelCache.get(cacheKey);
-      
-      if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
-        this.supportedModels = cached.data;
-        return;
-      }
-      
       const response = await axios.get(`${this.baseURL}/models`, {
         headers: {
           'Authorization': `Bearer ${this.openRouterApiKey}`,
@@ -64,6 +54,7 @@ class LLMService {
       });
       
       if (response.data && response.data.data) {
+        this.supportedModels.clear(); // 清空现有模型
         response.data.data.forEach(model => {
           this.supportedModels.set(model.id, {
             id: model.id,
@@ -76,45 +67,43 @@ class LLMService {
           });
         });
         
-        this.modelCache.set(cacheKey, {
-          data: this.supportedModels,
-          timestamp: Date.now()
-        });
-        
-        logger.info(`Loaded ${this.supportedModels.size} supported models`);
+        logger.info(`Loaded ${this.supportedModels.size} supported models from API`);
       }
     } catch (error) {
-      logger.error('Failed to load supported models:', error);
-      // 使用默认模型列表
-      this.loadDefaultModels();
+      logger.error('Failed to load supported models from API:', error);
+      throw error; // 不再使用fallback，直接抛出错误
     }
   }
 
   /**
-   * 加载默认模型列表
+   * 从API加载模型列表（移除硬编码默认模型）
    */
-  loadDefaultModels() {
-    const defaultModels = [
-      {
-        id: 'openai/gpt-3.5-turbo',
-        name: 'GPT-3.5 Turbo',
-        context_length: 4096
-      },
-      {
-        id: 'openai/gpt-4',
-        name: 'GPT-4',
-        context_length: 8192
-      },
-      {
-        id: 'anthropic/claude-3-haiku',
-        name: 'Claude 3 Haiku',
-        context_length: 200000
+  async loadModelsFromAPI() {
+    try {
+      const response = await axios.get(`${this.baseURL}/models`, {
+        headers: {
+          'Authorization': `Bearer ${this.openRouterApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: this.timeout
+      });
+
+      if (response.data && response.data.data) {
+        response.data.data.forEach(model => {
+          if (model.id && model.context_length) {
+            this.supportedModels.set(model.id, {
+              id: model.id,
+              name: model.name || model.id,
+              context_length: model.context_length
+            });
+          }
+        });
+        logger.info(`Loaded ${response.data.data.length} models from API`);
       }
-    ];
-    
-    defaultModels.forEach(model => {
-      this.supportedModels.set(model.id, model);
-    });
+    } catch (error) {
+      logger.error('Failed to load models from API:', error.message);
+      throw error;
+    }
   }
 
   /**

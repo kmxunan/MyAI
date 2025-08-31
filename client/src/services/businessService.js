@@ -9,20 +9,20 @@ const businessApi = axios.create({
 
 // 请求拦截器 - 添加认证token
 businessApi.interceptors.request.use(
-  (config) => {
+  (requestConfig) => {
     const authStorage = localStorage.getItem(config.auth.tokenKey);
     if (authStorage) {
       try {
         const authData = JSON.parse(authStorage);
         const token = authData.state?.token;
         if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+          requestConfig.headers.Authorization = `Bearer ${token}`;
         }
       } catch (error) {
         console.error('Error parsing auth token:', error);
       }
     }
-    return config;
+    return requestConfig;
   },
   (error) => {
     return Promise.reject(error);

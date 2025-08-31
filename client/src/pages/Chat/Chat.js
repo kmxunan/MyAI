@@ -65,7 +65,8 @@ const Chat = () => {
     selectConversation,
     sendMessage,
     deleteConversation,
-    fetchSupportedModels
+    fetchSupportedModels,
+    validateCurrentConversation
   } = useChatStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,8 +87,9 @@ const Chat = () => {
     if (isAuthenticated) {
       fetchConversations();
       fetchSupportedModels();
+      validateCurrentConversation();
     }
-  }, [isAuthenticated, fetchConversations, fetchSupportedModels]);
+  }, [isAuthenticated, fetchConversations, fetchSupportedModels, validateCurrentConversation]);
 
   useEffect(() => {
     if (settings?.ai?.defaultModel) {
