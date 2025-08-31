@@ -1,25 +1,26 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 const { AppError } = require('../middleware/errorHandler');
+const config = require('../config');
 
 class EmbeddingService {
   constructor() {
     this.config = {
       // OpenRouter Configuration
-      openrouterApiKey: process.env.OPENROUTER_API_KEY,
-      openrouterBaseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+      openrouterApiKey: config.get('openrouter.apiKey'),
+      openrouterBaseUrl: config.get('openrouter.baseUrl'),
       
       // Default embedding model
-      defaultModel: process.env.EMBEDDING_MODEL || 'openai/text-embedding-ada-002',
+      defaultModel: config.get('openrouter.embeddingModel'),
       
       // Request settings
-      timeout: parseInt(process.env.EMBEDDING_TIMEOUT, 10) || 30000,
-      maxRetries: parseInt(process.env.EMBEDDING_MAX_RETRIES, 10) || 3,
-      retryDelay: parseInt(process.env.EMBEDDING_RETRY_DELAY, 10) || 1000,
+      timeout: config.get('openrouter.timeout'),
+      maxRetries: config.get('openrouter.maxRetries'),
+      retryDelay: config.get('performance.retryDelay') || 1000,
       
       // Batch processing
-      maxBatchSize: parseInt(process.env.EMBEDDING_BATCH_SIZE, 10) || 100,
-      maxInputLength: parseInt(process.env.EMBEDDING_MAX_INPUT_LENGTH, 10) || 8000,
+      maxBatchSize: config.get('ai.batchSize') || 100,
+      maxInputLength: config.get('ai.maxInputLength') || 8000,
     };
 
     // 支持的嵌入模型配置

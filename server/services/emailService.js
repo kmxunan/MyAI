@@ -52,7 +52,7 @@ class EmailService {
       });
       console.log('Test email account created:', testAccount.user);
     } catch (error) {
-      loggerModule.errorLogger('Failed to create test email account', error);
+      loggerModule.error('Failed to create test email account', error);
     }
   }
 

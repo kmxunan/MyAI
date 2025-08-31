@@ -1,5 +1,9 @@
 const fs = require('fs');
+const path = require('path');
 const logger = require('../utils/logger');
+
+// 加载环境变量
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 /**
  * RAG服务配置管理模块
