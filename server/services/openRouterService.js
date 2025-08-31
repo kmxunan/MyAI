@@ -489,6 +489,22 @@ class OpenRouterService {
     }
     
     try {
+      // 首先尝试从已缓存的模型列表中获取定价信息
+      const models = await this.getModels();
+      const model = models.data.find(m => m.id === modelId);
+      
+      if (model && model.pricing) {
+        const pricing = model.pricing;
+        
+        this.modelPricingCache.set(cacheKey, {
+          pricing,
+          timestamp: Date.now()
+        });
+        
+        return pricing;
+      }
+      
+      // 如果模型列表中没有找到，则尝试单独获取模型信息
       const modelInfo = await this.getModelInfo(modelId);
       const pricing = modelInfo.pricing;
       
