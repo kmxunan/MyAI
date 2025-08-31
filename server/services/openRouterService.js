@@ -36,8 +36,7 @@ class OpenRouterService {
     
     logger.info('OpenRouter service initialized', {
       baseURL: this.baseURL,
-      timeout: this.timeout,
-      defaultModels: this.defaultModels
+      timeout: this.timeout
     });
   }
 
@@ -374,7 +373,14 @@ class OpenRouterService {
         pricing: model.pricing,
         top_provider: model.top_provider,
         per_request_limits: model.per_request_limits,
-        capabilities: this.getModelCapabilities(model.id),
+        // 移除自动获取capabilities调用，避免大量404错误
+        // capabilities: this.getModelCapabilities(model.id),
+        capabilities: {
+          maxTokens: model.context_length || 4096,
+          supportsVision: model.architecture?.modality?.includes('image') || false,
+          supportsFunction: model.architecture?.instruct_type === 'function' || false,
+          pricing: model.pricing || null
+        },
         localPricing: this.modelPricingCache.get(model.id)
       };
       
@@ -570,14 +576,18 @@ class OpenRouterService {
       let candidates = [];
       
       for (const model of models.data) {
-        // 基本过滤
-        if (needsVision && !this.modelCapabilities[model.id]?.supportsVision) {
+        // 基本过滤 - 直接从模型数据获取能力信息
+        const supportsVision = model.architecture?.modality?.includes('image') || false;
+        const supportsFunction = model.architecture?.instruct_type === 'function' || false;
+        const modelMaxTokens = model.context_length || 4096;
+        
+        if (needsVision && !supportsVision) {
           continue;
         }
-        if (needsFunctionCalling && !this.modelCapabilities[model.id]?.supportsFunction) {
+        if (needsFunctionCalling && !supportsFunction) {
           continue;
         }
-        if (maxTokens && this.modelCapabilities[model.id]?.maxTokens < maxTokens) {
+        if (maxTokens && modelMaxTokens < maxTokens) {
           continue;
         }
 
